@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppHeader from '@/components/AppHeader';
@@ -10,6 +10,7 @@ import { Colors } from '@/constants/colors';
 import { getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import { mockMe } from '@/mocks/me';
+import { notify } from '@/utils/dialog';
 
 const PRICE = 500; // 무가사 음악 생성 1회
 const MAX = 99;
@@ -25,7 +26,7 @@ export default function PaymentScreen() {
 
   const pay = () => {
     // TODO: 결제(PG) 연동 → 성공 시 크레딧 충전 API
-    Alert.alert('음악 충전', `${count}회 · ${won(PRICE * count)} 결제는 연동 후 동작해요.`);
+    notify('음악 충전', `${count}회 · ${won(PRICE * count)} 결제는 연동 후 동작해요.`);
   };
 
   return (

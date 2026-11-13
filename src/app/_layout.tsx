@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import Cover from '@/components/Cover';
@@ -10,6 +11,17 @@ import { Colors } from '@/constants/colors';
 import { FontAssets } from '@/constants/typography';
 
 SplashScreen.preventAutoHideAsync();
+
+// 모바일 웹 전용 보정: 입력칸 포커스 테두리 / 탭할 때 파란 깜빡임 / 당겨서 새로고침 막기
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    input, textarea { outline: none !important; }
+    * { -webkit-tap-highlight-color: transparent; }
+    html, body { overscroll-behavior: none; background: #151515; }
+  `;
+  document.head.appendChild(style);
+}
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(FontAssets);

@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppHeader from '@/components/AppHeader';
@@ -13,7 +13,8 @@ import { Colors } from '@/constants/colors';
 import { getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import { mockRecipients } from '@/mocks/send';
-import type { EmotionKey } from '@/types/emotion';
+import type { EmotionKey, SendRoute } from '@/types/emotion';
+import { notify } from '@/utils/dialog';
 
 const ORB_SIZE = 300;
 const ORB_VISIBLE = 272; // 가운데 구슬이 화면에 보이는 지름 (피그마 기준)
@@ -31,6 +32,7 @@ export default function SendScreen() {
   const [step, setStep] = useState<Step>('empty');
   const [emotions, setEmotions] = useState<EmotionKey[]>([]);
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
+  const [route, setRoute] = useState<SendRoute>('nearby');
 
   const toggleEmotion = (key: EmotionKey) => {
     setEmotions((prev) => {
@@ -53,13 +55,21 @@ export default function SendScreen() {
     setStep('empty');
     setEmotions([]);
     setRecipientIds([]);
+    setRoute('nearby');
   };
 
   const onSend = () => {
-    // TODO: 백엔드 연동 - 감정 전송 API (emotions, recipientIds)
+    // TODO: 백엔드 연동 - 감정 전송 API
+    // { emotions: ['yellow', 'blue'], route: 'nearby' | 'me' | 'anonymous', recipientIds }
     const labels = emotions.map((k) => getEmotion(k).label).join(' · ');
+    const done =
+      route === 'me'
+        ? '나에게 감정을 보관했어요.'
+        : route === 'anonymous'
+          ? '익명으로 감정을 보냈어요.'
+          : `${recipientIds.length}곳에 감정을 보냈어요.`;
     reset();
-    Alert.alert('전송 완료', `${recipientIds.length}곳에 감정을 보냈어요.\n${labels}`);
+    notify('전송 완료', `${done}\n${labels}`);
     router.navigate('/');
   };
 
@@ -129,6 +139,8 @@ export default function SendScreen() {
 
       <RecipientSheet
         visible={step === 'share'}
+        route={route}
+        onChangeRoute={setRoute}
         recipients={mockRecipients}
         selectedIds={recipientIds}
         onToggle={toggleRecipient}

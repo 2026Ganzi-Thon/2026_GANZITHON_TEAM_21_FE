@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Fragment, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppHeader from '@/components/AppHeader';
@@ -11,6 +11,7 @@ import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
 import { signOut } from '@/stores/authStore';
+import { notify, confirm } from '@/utils/dialog';
 
 type ToggleKey = 'nearby' | 'anonymous' | 'push' | 'mindLens' | 'swipeMusic';
 
@@ -91,10 +92,12 @@ export default function SettingsScreen() {
   const onToggle = (key: ToggleKey, next: boolean) => {
     // 익명 구슬은 성인만 (기능명세 TR-07) - 연동 시 성인 인증 여부로 막기
     if (key === 'anonymous' && next) {
-      Alert.alert('익명 구슬 받기', '만 19세 이상만 사용할 수 있어요. 켤까요?', [
-        { text: '취소', style: 'cancel' },
-        { text: '켜기', onPress: () => set(key, true) },
-      ]);
+      confirm({
+        title: '익명 구슬 받기',
+        message: '만 19세 이상만 사용할 수 있어요. 켤까요?',
+        okText: '켜기',
+        onOk: () => set(key, true),
+      });
       return;
     }
     set(key, next);
@@ -114,7 +117,7 @@ export default function SettingsScreen() {
                   {i > 0 && <View style={styles.divider} />}
                   <Pressable
                     disabled={row.kind === 'toggle'}
-                    onPress={() => Alert.alert(row.title, '준비 중이에요.')} // TODO: 상세 화면
+                    onPress={() => notify(row.title, '준비 중이에요.')} // TODO: 상세 화면
                     style={({ pressed }) => [styles.row, pressed && styles.pressed]}
                   >
                     <View style={styles.texts}>
@@ -147,17 +150,15 @@ export default function SettingsScreen() {
 
         <Pressable
           onPress={() =>
-            Alert.alert('로그아웃할까요?', undefined, [
-              { text: '취소', style: 'cancel' },
-              {
-                text: '로그아웃',
-                style: 'destructive',
-                onPress: async () => {
-                  await signOut();
-                  router.replace('/login');
-                },
+            confirm({
+              title: '로그아웃할까요?',
+              okText: '로그아웃',
+              destructive: true,
+              onOk: async () => {
+                await signOut();
+                router.replace('/login');
               },
-            ])
+            })
           }
           style={({ pressed }) => [styles.logout, pressed && styles.pressed]}
         >
