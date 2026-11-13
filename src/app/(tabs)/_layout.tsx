@@ -20,6 +20,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="social" />
       <Tabs.Screen name="payment" />
       <Tabs.Screen name="settings" />
+      {/* 헤더 👤+ */}
+      <Tabs.Screen name="friend-add" />
     </Tabs>
   );
 }

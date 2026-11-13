@@ -40,6 +40,11 @@ export const Icons = {
   heartOutline: require('@/assets/icons/heart-outline.svg'),
   xRed: require('@/assets/icons/x-red.svg'),
   chevronLeft: require('@/assets/icons/chevron-left.svg'), // 설정 화면에서는 좌우 반전해서 ›
+  // 친구 추가
+  circlePlus: require('@/assets/icons/circle-plus.svg'),
+  circleX: require('@/assets/icons/circle-x.svg'),
+  scan: require('@/assets/icons/scan.svg'),
+  userAddWhite: require('@/assets/icons/user-add-white.svg'),
 };
 
 export const Images = {

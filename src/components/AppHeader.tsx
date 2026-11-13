@@ -20,7 +20,7 @@ type Props = {
 };
 
 // 모든 메인 화면 공통 헤더: ☰  제목 ⌄  👤+ ⚙︎
-// ☰ = 햄버거 메뉴, ⚙︎ = 설정 화면 (기본 동작)
+// ☰ = 햄버거 메뉴, 👤+ = 친구 추가, ⚙︎ = 설정 화면 (기본 동작)
 export default function AppHeader({
   title,
   subtitle,
@@ -51,7 +51,7 @@ export default function AppHeader({
         <View style={styles.right}>
           <IconButton
             icon={Icons.userAdd}
-            onPress={onPressAddFriend}
+            onPress={onPressAddFriend ?? (() => router.navigate('/friend-add'))}
             accessibilityLabel="친구 추가"
           />
           <IconButton

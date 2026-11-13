@@ -60,3 +60,9 @@ dl assets/icons/edit.svg                  71e56a56-192d-4f2a-b0b4-23a414a9754b.s
 dl assets/icons/heart-outline.svg         616d3f5b-5ac8-4eaf-9eb1-bcf43be94a63.svg
 dl assets/icons/x-red.svg                 e85e2b26-ca91-4061-9d27-a9683ba2addc.svg
 dl assets/icons/chevron-left.svg          2af9b88c-a822-40b8-bea8-c986083dc1a9.svg
+
+# ── 친구 추가 ──
+dl assets/icons/circle-plus.svg           e50fc991-7562-47ee-81b7-e51111e2a569.svg
+dl assets/icons/circle-x.svg              fa0a0504-8c8a-4bfa-bb50-a3bfbee9a5f1.svg
+dl assets/icons/scan.svg                  c60daf80-e94b-463c-bcbb-33dcba9de3dc.svg
+dl assets/icons/user-add-white.svg        12131e82-9549-4683-93b7-b3eff0103848.svg

@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   content: {
     paddingHorizontal: 29,
-    paddingTop: 12,
+    paddingTop: 21,
     paddingBottom: TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_GAP + 60,
     gap: 17,
   },
