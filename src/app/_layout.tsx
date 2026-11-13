@@ -7,6 +7,7 @@ import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import Cover from '@/components/Cover';
+import NotificationBanner from '@/components/NotificationBanner';
 import { Colors } from '@/constants/colors';
 import { FontAssets } from '@/constants/typography';
 
@@ -43,6 +44,8 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
       </Stack>
+      {/* 앱 안 알림 배너 (모든 화면 위) */}
+      <NotificationBanner />
       {/* 앱 켤 때 커버 화면 → 로그인 상태에 따라 메인 / 로그인 */}
       {showCover && <Cover onDone={hideCover} />}
     </GestureHandlerRootView>

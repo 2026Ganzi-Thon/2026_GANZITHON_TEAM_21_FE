@@ -1,11 +1,23 @@
 import { Redirect, Tabs } from 'expo-router';
+import { useEffect } from 'react';
 
 import TabBar from '@/components/TabBar';
 import { Colors } from '@/constants/colors';
+import { notifyReceived } from '@/mocks/notifications';
 import { useAuthStatus } from '@/stores/authStore';
+
+let demoShown = false;
 
 export default function TabsLayout() {
   const auth = useAuthStatus();
+
+  // TODO: 시연용 가짜 알림. 연동 시 서버 푸시로 교체하고 이 부분 삭제
+  useEffect(() => {
+    if (auth !== 'in' || demoShown) return;
+    demoShown = true;
+    const t = setTimeout(notifyReceived, 3000);
+    return () => clearTimeout(t);
+  }, [auth]);
   if (auth === 'loading') return null; // 저장된 토큰 읽는 중 (커버가 덮고 있음)
   if (auth === 'out') return <Redirect href="/login" />;
 

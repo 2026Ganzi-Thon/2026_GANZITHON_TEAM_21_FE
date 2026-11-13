@@ -77,3 +77,6 @@ dl assets/images/orbs/deco-gray.png       bb2aaf0e-d34e-4182-94cb-32d39bba48d6.p
 dl assets/icons/google.png                5aab68af-ede1-4898-9e37-c0b14052d2b3.png
 dl assets/icons/naver.svg                 0a7f0438-63a8-49d4-bdc2-c56a043f0acd.svg
 dl assets/icons/phone.svg                 cce18be9-b507-42fe-87f5-11d31f37284d.svg
+
+# ── 알림 ──
+dl assets/images/app-icon.png             db4d81cb-859b-49a3-bef9-1a38b9558d6a.png
