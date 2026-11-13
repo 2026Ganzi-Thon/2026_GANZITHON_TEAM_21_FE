@@ -1,17 +1,22 @@
+import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppHeader from '@/components/AppHeader';
 import EmotionOrb from '@/components/EmotionOrb';
 import PageDots from '@/components/PageDots';
+import RecordSheet from '@/components/RecordSheet';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
 import { mockHome } from '@/mocks/home';
+import { mockWeeks } from '@/mocks/record';
 
 // 01 메인 (그룹의 이번 주 감정 구슬)
 export default function HomeScreen() {
   const data = mockHome;
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const thisWeek = mockWeeks[0]; // TODO: 이번 주 기록 API
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -28,12 +33,7 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        <EmotionOrb
-          source={data.orbImage}
-          onPress={() => {
-            // TODO: 주간 감정 기록(상세기록-그룹) 열기
-          }}
-        />
+        <EmotionOrb source={data.orbImage} onPress={() => setSheetOpen(true)} />
 
         <View style={styles.dots}>
           <PageDots count={data.pageCount} activeIndex={1} />
@@ -42,6 +42,9 @@ export default function HomeScreen() {
         <Text style={styles.message}>{data.latestSender}님이 가장 최근에 감정을 보냈어요.</Text>
         <Text style={styles.hint}>구슬을 눌러 감정 기록을 확인해보세요.</Text>
       </ScrollView>
+
+      {/* 구슬 누르면 이번 주 상세 기록 (기능명세 AR-02 / AR-03) */}
+      <RecordSheet week={sheetOpen ? thisWeek : null} onClose={() => setSheetOpen(false)} />
     </SafeAreaView>
   );
 }
