@@ -16,6 +16,7 @@ const LABELS: Record<string, string> = { reaction: '반응', index: '구슬', re
 
 export default function TabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const sendRoute = state.routes.find((r) => r.name === 'send');
 
   return (
     <View
@@ -24,16 +25,21 @@ export default function TabBar({ state, emitter, navigateToTab }: BottomTabBarPr
     >
       <View style={styles.bar}>
         {state.routes.map((route, index) => {
+          // 탭바에 안 보이는 화면(감정 보내기 등)은 건너뜀
+          if (!(route.name in LABELS)) return null;
           const focused = state.index === index;
+          const isCenter = route.name === 'index';
           const onPress = () => {
             const event = emitter.emit({
               type: 'tabPress',
               target: route.key,
               canPreventDefault: true,
             });
-            if (!focused && !event.defaultPrevented) navigateToTab(route.key);
+            if (event.defaultPrevented) return;
+            // 메인에서 가운데 구슬을 한 번 더 누르면 → 감정 보내기
+            if (isCenter && focused && sendRoute) return navigateToTab(sendRoute.key);
+            if (!focused) navigateToTab(route.key);
           };
-          const isCenter = route.name === 'index';
 
           return (
             <Pressable
