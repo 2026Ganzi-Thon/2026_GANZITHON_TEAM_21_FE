@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   content: {
     alignItems: 'center',
     paddingHorizontal: 27,
-    paddingTop: 13,
+    paddingTop: 21,
     paddingBottom: TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_GAP + 40,
   },
   title: { fontFamily: Fonts.semiBold, fontSize: 19, lineHeight: 23, color: Colors.textPrimary },

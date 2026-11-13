@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   content: {
     alignItems: 'center',
-    paddingTop: 38,
+    paddingTop: 46,
     paddingBottom: TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_GAP + 40,
   },
   canvas: { width: 393, height: 510 },

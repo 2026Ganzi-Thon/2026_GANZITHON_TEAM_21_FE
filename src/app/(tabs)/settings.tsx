@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import { Fragment, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +10,7 @@ import Toggle from '@/components/Toggle';
 import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
+import { signOut } from '@/stores/authStore';
 
 type ToggleKey = 'nearby' | 'anonymous' | 'push' | 'mindLens' | 'swipeMusic';
 
@@ -142,6 +144,25 @@ export default function SettingsScreen() {
             </View>
           </View>
         ))}
+
+        <Pressable
+          onPress={() =>
+            Alert.alert('로그아웃할까요?', undefined, [
+              { text: '취소', style: 'cancel' },
+              {
+                text: '로그아웃',
+                style: 'destructive',
+                onPress: async () => {
+                  await signOut();
+                  router.replace('/login');
+                },
+              },
+            ])
+          }
+          style={({ pressed }) => [styles.logout, pressed && styles.pressed]}
+        >
+          <Text style={styles.logoutText}>로그아웃</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -151,7 +172,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   content: {
     paddingHorizontal: 29,
-    paddingTop: 12,
+    paddingTop: 21,
     paddingBottom: TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_GAP + 60,
     gap: 17,
   },
@@ -181,6 +202,8 @@ const styles = StyleSheet.create({
   rowTitle: { fontFamily: Fonts.medium, fontSize: 13.3, color: '#EBECEE' },
   rowDesc: { fontFamily: Fonts.regular, fontSize: 10.7, color: '#91969D' },
   toggle: { marginRight: 16.6 },
+  logout: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
+  logoutText: { fontFamily: Fonts.medium, fontSize: 13, color: '#91969D' },
   // 피그마 chevron.left 를 좌우 반전 → ›
   chevron: { width: 6.5, height: 10.6, marginRight: 1, transform: [{ scaleX: -1 }] },
 });

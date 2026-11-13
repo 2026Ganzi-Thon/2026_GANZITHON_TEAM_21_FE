@@ -1,9 +1,14 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 
 import TabBar from '@/components/TabBar';
 import { Colors } from '@/constants/colors';
+import { useAuthStatus } from '@/stores/authStore';
 
 export default function TabsLayout() {
+  const auth = useAuthStatus();
+  if (auth === 'loading') return null; // 저장된 토큰 읽는 중 (커버가 덮고 있음)
+  if (auth === 'out') return <Redirect href="/login" />;
+
   return (
     <Tabs
       tabBar={(props) => <TabBar {...props} />}
@@ -20,6 +25,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="social" />
       <Tabs.Screen name="payment" />
       <Tabs.Screen name="settings" />
+      {/* 헤더 👤+ */}
+      <Tabs.Screen name="friend-add" />
     </Tabs>
   );
 }
