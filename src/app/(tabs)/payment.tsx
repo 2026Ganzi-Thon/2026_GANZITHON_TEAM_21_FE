@@ -10,6 +10,7 @@ import { Colors } from '@/constants/colors';
 import { getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import { mockMe } from '@/mocks/me';
+import { addCredits, useCredits } from '@/stores/creditStore';
 import { notify } from '@/utils/dialog';
 
 const PRICE = 500; // 무가사 음악 생성 1회
@@ -22,11 +23,13 @@ const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 // - 음악 생성 기회를 횟수 단위로 충전 (자동 결제 없음)
 export default function PaymentScreen() {
   const [count, setCount] = useState(1);
+  const credits = useCredits();
   const emotion = getEmotion(mockMe.emotion);
 
   const pay = () => {
-    // TODO: 결제(PG) 연동 → 성공 시 크레딧 충전 API
-    notify('음악 충전', `${count}회 · ${won(PRICE * count)} 결제는 연동 후 동작해요.`);
+    // TODO: 결제(PG) 연동 → 성공 시 크레딧 충전 API. 지금은 바로 충전된 것으로 처리
+    addCredits(count);
+    notify('음악 충전 완료', `${count}회 충전했어요. (남은 횟수 ${credits + count}회)`);
   };
 
   return (
