@@ -46,3 +46,11 @@ src/
 - 작업 후 `dev`로 PR → 다른 프론트 팀원이 리뷰 후 머지
 - 커밋 메시지: `feat:` 기능 / `fix:` 버그 / `style:` UI·스타일 / `refactor:` / `chore:` 설정
 - PR 전에 `npm run lint && npm run typecheck`
+
+## 에셋 받기 (처음 한 번)
+
+구슬 이미지·아이콘은 피그마에서 받아와야 해요. 프로젝트 폴더에서:
+
+```bash
+bash scripts/fetch-figma-assets.sh
+```
