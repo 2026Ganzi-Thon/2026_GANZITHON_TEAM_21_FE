@@ -2,7 +2,6 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,6 +19,7 @@ import { Icons, Images } from '@/constants/assets';
 import { Colors, NeuCard } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
 import { signIn } from '@/stores/authStore';
+import { notify } from '@/utils/dialog';
 
 type Mode = 'login' | 'signup';
 
@@ -49,7 +49,7 @@ export default function AuthForm({ mode }: { mode: Mode }) {
       await signIn('mock-token');
       router.replace('/');
     } catch {
-      Alert.alert(isSignup ? '회원가입에 실패했어요.' : '아이디 또는 비밀번호를 확인해주세요.');
+      notify(isSignup ? '회원가입에 실패했어요.' : '아이디 또는 비밀번호를 확인해주세요.');
     } finally {
       setBusy(false);
     }
@@ -59,7 +59,7 @@ export default function AuthForm({ mode }: { mode: Mode }) {
     if (router.canGoBack()) router.back();
   };
 
-  const social = (name: string) => Alert.alert(`${name} 로그인`, '간편 로그인은 준비 중이에요.'); // TODO
+  const social = (name: string) => notify(`${name} 로그인`, '간편 로그인은 준비 중이에요.'); // TODO
 
   return (
     <View style={styles.screen}>

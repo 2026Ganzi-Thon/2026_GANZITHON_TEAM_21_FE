@@ -1,7 +1,6 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,6 +19,7 @@ import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
 import { mockFriends, type Friend } from '@/mocks/social';
+import { confirm } from '@/utils/dialog';
 
 // 햄버거 > 소셜 목록 (피그마 '소셜_목록')
 // - 친구 줄: 이번 주 구슬 / 이름 / ♡ 즐겨찾기 / ✕ 삭제
@@ -38,15 +38,12 @@ export default function SocialScreen() {
   };
 
   const remove = (friend: Friend) => {
-    Alert.alert(`${friend.name}님을 목록에서 삭제할까요?`, undefined, [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: () => setFriends((prev) => prev.filter((f) => f.id !== friend.id)),
-        // TODO: 친구 삭제 API
-      },
-    ]);
+    confirm({
+      title: `${friend.name}님을 목록에서 삭제할까요?`,
+      okText: '삭제',
+      destructive: true,
+      onOk: () => setFriends((prev) => prev.filter((f) => f.id !== friend.id)), // TODO: 친구 삭제 API
+    });
   };
 
   return (
@@ -149,7 +146,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     backgroundColor: 'rgba(255,255,255,0.06)',
     fontFamily: Fonts.regular,
-    fontSize: 15,
+    fontSize: 16, // 16 미만이면 아이폰 웹에서 입력할 때 화면이 확대됨
     color: Colors.textPrimary,
   },
 });

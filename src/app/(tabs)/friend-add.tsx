@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppHeader from '@/components/AppHeader';
@@ -11,6 +11,7 @@ import { Colors, NeuCard } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
 import { mockMe } from '@/mocks/me';
 import { mockRequests, mockUsers, type FriendRequest, type SearchUser } from '@/mocks/friendAdd';
+import { notify } from '@/utils/dialog';
 
 // 헤더 👤+ > 친구 추가 (피그마 '친구추가' / '친구추가-입력')
 // - 검색칸이 비어 있으면: 받은 친구 요청 (⊕ 수락 / ⊗ 거절)
@@ -27,7 +28,7 @@ export default function FriendAddScreen() {
   const answer = (req: FriendRequest, accept: boolean) => {
     setRequests((prev) => prev.filter((r) => r.id !== req.id));
     // TODO: 친구 요청 수락/거절 API
-    if (accept) Alert.alert(`${req.name}님과 친구가 됐어요.`);
+    if (accept) notify(`${req.name}님과 친구가 됐어요.`);
   };
 
   const sendRequest = (user: SearchUser) => {
@@ -37,7 +38,7 @@ export default function FriendAddScreen() {
 
   const scan = () => {
     // TODO: expo-camera 로 QR 스캔 → 프로필 QR(친구추가 링크) 읽기
-    Alert.alert('QR로 친구 추가', '카메라 스캔은 준비 중이에요.');
+    notify('QR로 친구 추가', '카메라 스캔은 준비 중이에요.');
   };
 
   return (

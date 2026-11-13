@@ -1,6 +1,24 @@
 import { Image } from 'expo-image';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
@@ -10,6 +28,11 @@ import type { RecordEntry, WeekRecord } from '@/types/emotion';
 
 const MAX_REACTIONS = 3; // 이보다 많으면 '+N'
 const ORB = 42;
+
+// 끌어내려 닫기 감도
+const DISMISS_RATIO = 0.25; // 시트 높이의 25% 이상 내리면 닫힘
+const DISMISS_VELOCITY = 700; // 또는 이 속도(px/s) 이상으로 휙 내리면 닫힘
+const SPRING_BACK = { damping: 24, stiffness: 280, mass: 0.9 }; // 덜 내렸을 때 제자리로
 
 type Props = {
   week: WeekRecord | null; // null 이면 닫힘
@@ -23,74 +46,135 @@ type Props = {
 // - 팝업에서는 음악 재생 안 함 (기능명세 MU-10)
 export default function RecordSheet({ week, mode = 'group', onClose, onPressEntry }: Props) {
   const insets = useSafeAreaInsets();
+  const { height: screenH } = useWindowDimensions();
+  const visible = !!week;
+
+  // 시트가 원래 자리에서 아래로 밀려난 거리 (0 = 다 열림)
+  const offset = useSharedValue(screenH);
+  const sheetH = useSharedValue(screenH);
+
+  // 열릴 때: 아래에서 올라옴
+  useEffect(() => {
+    if (!visible) return;
+    offset.set(screenH);
+    offset.set(withTiming(0, { duration: 300, easing: Easing.out(Easing.cubic) }));
+  }, [visible, screenH, offset]);
+
+  // 닫힐 때: 아래로 내려간 뒤 onClose
+  const close = (velocity = 0) => {
+    'worklet';
+    const remaining = sheetH.get() - offset.get();
+    const speed = Math.max(velocity, 1600); // 손을 빨리 뗐으면 그 속도 그대로 이어서
+    const duration = Math.min(280, Math.max(120, (remaining / speed) * 1000));
+    offset.set(
+      withTiming(sheetH.get(), { duration, easing: Easing.out(Easing.quad) }, (done) => {
+        if (done) scheduleOnRN(onClose);
+      }),
+    );
+  };
+
+  // 위쪽 바(손잡이·날짜·열 이름)를 잡고 끌기
+  const drag = Gesture.Pan()
+    .onUpdate((e) => {
+      // 아래로는 손가락 그대로, 위로는 살짝만 (고무줄 느낌)
+      offset.set(e.translationY > 0 ? e.translationY : e.translationY * 0.15);
+    })
+    .onEnd((e) => {
+      const far = offset.get() > sheetH.get() * DISMISS_RATIO;
+      const fast = e.velocityY > DISMISS_VELOCITY;
+      if ((far || fast) && e.velocityY > -300) close(e.velocityY);
+      else offset.set(withSpring(0, { ...SPRING_BACK, velocity: e.velocityY }));
+    });
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: offset.get() }],
+  }));
+  // 시트를 내릴수록 뒤 어둡기도 옅어짐
+  const dimStyle = useAnimatedStyle(() => ({
+    opacity: 1 - Math.min(1, offset.get() / Math.max(1, sheetH.get())),
+  }));
 
   return (
-    <Modal visible={!!week} transparent animationType="slide" onRequestClose={onClose}>
-      {/* 헤더 영역(위쪽)은 비워 두고, 탭하면 닫기 */}
-      <Pressable style={{ height: insets.top + 82 }} onPress={onClose} />
+    <Modal visible={visible} transparent animationType="none" onRequestClose={() => close()}>
+      <GestureHandlerRootView style={styles.root}>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.dim, dimStyle]} />
+        {/* 헤더 영역(위쪽)은 비워 두고, 탭하면 닫기 */}
+        <Pressable style={{ height: insets.top + 82 }} onPress={() => close()} />
 
-      <View style={styles.sheet}>
-        <View style={styles.handle} />
-        {week && <Text style={styles.week}>{week.label}</Text>}
+        <Animated.View
+          style={[styles.sheet, sheetStyle]}
+          onLayout={(e) => sheetH.set(e.nativeEvent.layout.height)}
+        >
+          <GestureDetector gesture={drag}>
+            <View style={styles.dragArea} collapsable={false}>
+              <View style={styles.handle} />
+              {week && <Text style={styles.week}>{week.label}</Text>}
 
-        <View style={styles.columns}>
-          <Text style={[styles.colLabel, styles.colEmotion]}>감정</Text>
-          <Text style={[styles.colLabel, styles.colSender]}>
-            {mode === 'mine' ? '내 감정 받은이' : '보낸이'}
-          </Text>
-          <Text style={[styles.colLabel, styles.colReaction]}>반응</Text>
-        </View>
+              <View style={styles.columns}>
+                <Text style={[styles.colLabel, styles.colEmotion]}>감정</Text>
+                <Text style={[styles.colLabel, styles.colSender]}>
+                  {mode === 'mine' ? '내 감정 받은이' : '보낸이'}
+                </Text>
+                <Text style={[styles.colLabel, styles.colReaction]}>반응</Text>
+              </View>
+            </View>
+          </GestureDetector>
 
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-          {week?.entries.length === 0 && (
-            <Text style={styles.empty}>이 주에는 아직 기록이 없어요.</Text>
-          )}
-          {week?.entries.map((entry) => {
-            const emotion = getEmotion(entry.emotion);
-            const extra = entry.reactions.length - MAX_REACTIONS;
-            return (
-              <Pressable
-                key={entry.id}
-                style={styles.row}
-                onPress={onPressEntry ? () => onPressEntry(entry) : undefined}
-                disabled={!onPressEntry}
-                accessibilityLabel={`${entry.senderName}, ${emotion.label}`}
-              >
-                <View style={styles.colEmotion}>
-                  <View style={styles.orbBox}>
-                    <Image
-                      source={emotion.image}
-                      style={orbImageStyle(entry.emotion, ORB)}
-                      contentFit="contain"
-                    />
+          <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+            {week?.entries.length === 0 && (
+              <Text style={styles.empty}>이 주에는 아직 기록이 없어요.</Text>
+            )}
+            {week?.entries.map((entry) => {
+              const emotion = getEmotion(entry.emotion);
+              const extra = entry.reactions.length - MAX_REACTIONS;
+              return (
+                <Pressable
+                  key={entry.id}
+                  style={styles.row}
+                  onPress={onPressEntry ? () => onPressEntry(entry) : undefined}
+                  disabled={!onPressEntry}
+                  accessibilityLabel={`${entry.senderName}, ${emotion.label}`}
+                >
+                  <View style={styles.colEmotion}>
+                    <View style={styles.orbBox}>
+                      <Image
+                        source={emotion.image}
+                        style={orbImageStyle(entry.emotion, ORB)}
+                        contentFit="contain"
+                      />
+                    </View>
                   </View>
-                </View>
-                <View style={[styles.colSender, styles.sender]}>
-                  <Text style={styles.name} numberOfLines={1}>
-                    {entry.senderName}
-                  </Text>
-                  {entry.hasMusic && (
-                    <Image source={Icons.headphones} style={styles.music} contentFit="contain" />
-                  )}
-                </View>
-                <View style={[styles.colReaction, styles.reactions]}>
-                  {entry.reactions.slice(0, MAX_REACTIONS).map((r, i) => (
-                    <Text key={i} style={[styles.emoji, i > 0 && styles.emojiOverlap]}>
-                      {r}
+                  <View style={[styles.colSender, styles.sender]}>
+                    <Text style={styles.name} numberOfLines={1}>
+                      {entry.senderName}
                     </Text>
-                  ))}
-                  {extra > 0 && <Text style={styles.more}>+{extra}</Text>}
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
+                    {entry.hasMusic && (
+                      <Image source={Icons.headphones} style={styles.music} contentFit="contain" />
+                    )}
+                  </View>
+                  <View style={[styles.colReaction, styles.reactions]}>
+                    {entry.reactions.slice(0, MAX_REACTIONS).map((r, i) => (
+                      <Text key={i} style={[styles.emoji, i > 0 && styles.emojiOverlap]}>
+                        {r}
+                      </Text>
+                    ))}
+                    {extra > 0 && <Text style={styles.more}>+{extra}</Text>}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </Animated.View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
+  dim: { backgroundColor: 'rgba(0,0,0,0.25)' },
+  // 손가락이 닿는 영역 (손잡이 바만 잡기엔 작아서 날짜·열 이름까지 포함)
+  dragArea: { paddingBottom: 6 },
   sheet: {
     flex: 1,
     backgroundColor: '#1C1C1C',

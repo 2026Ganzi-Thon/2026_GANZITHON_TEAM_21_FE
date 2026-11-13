@@ -1,7 +1,9 @@
 import { useAudioPlayer } from 'expo-audio';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, AppState } from 'react-native';
+import { AppState } from 'react-native';
+
+import { notify } from '@/utils/dialog';
 
 // 감정구슬 음악 재생 (기능명세 MU-03 ~ MU-08)
 // - 자동 재생 X, play() 를 불러야만 재생
@@ -28,7 +30,7 @@ export function useOrbMusic(source?: number) {
       setPlaying(true);
     } catch {
       setPlaying(false);
-      Alert.alert('음악을 재생하지 못했어요', '감정구슬은 그대로 확인할 수 있어요.');
+      notify('음악을 재생하지 못했어요', '감정구슬은 그대로 확인할 수 있어요.');
     }
   }, [player, source]);
 
