@@ -1,6 +1,7 @@
 // 이미지·아이콘 모음 (파일은 scripts/fetch-figma-assets.sh 로 받음)
 export const Orbs = {
   group: require('@/assets/images/orbs/orb-group.png'),
+  mine: require('@/assets/images/orbs/orb-mine.png'),
   mono: require('@/assets/images/orbs/orb-mono.png'),
   monoDim: require('@/assets/images/orbs/orb-mono-dim.png'),
   yellow: require('@/assets/images/orbs/orb-yellow.png'),
@@ -27,6 +28,18 @@ export const Icons = {
   radioOff: require('@/assets/icons/radio-off.svg'),
   check: require('@/assets/icons/check-circle.svg'),
   headphones: require('@/assets/icons/headphones.svg'),
+  // 햄버거 메뉴
+  menuPressed: require('@/assets/icons/menu-pressed.svg'),
+  user: require('@/assets/icons/user.svg'),
+  userGroup: require('@/assets/icons/user-group.svg'),
+  creditCard: require('@/assets/icons/credit-card.svg'),
+  settingsMenu: require('@/assets/icons/settings-menu.svg'),
+  // 프로필 / 소셜 목록 / 설정
+  copy: require('@/assets/icons/copy.svg'),
+  edit: require('@/assets/icons/edit.svg'),
+  heartOutline: require('@/assets/icons/heart-outline.svg'),
+  xRed: require('@/assets/icons/x-red.svg'),
+  chevronLeft: require('@/assets/icons/chevron-left.svg'), // 설정 화면에서는 좌우 반전해서 ›
 };
 
 export const Images = {

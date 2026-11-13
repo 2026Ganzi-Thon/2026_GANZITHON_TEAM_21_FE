@@ -38,3 +38,24 @@ export const mockWeeks: WeekRecord[] = weekColors.map((emotion, i) => ({
   emotion,
   entries: emotion ? sampleEntries : [],
 }));
+
+// 내 감정 기록: '보낸이' 대신 '내 감정 받은이'가 들어감 (피그마 '상세기록-개인')
+const mineEntries: RecordEntry[] = [
+  { id: 'm1', emotion: 'blue', senderName: '서현', hasMusic: true, reactions: ['🥵'] },
+  {
+    id: 'm2',
+    emotion: 'blue',
+    senderName: '지환',
+    hasMusic: false,
+    reactions: ['🤢', '👻', '💩', '😿', '🙏'],
+  },
+  { id: 'm3', emotion: 'purple', senderName: '명철', hasMusic: false, reactions: ['🤟', '🐱'] },
+  { id: 'm4', emotion: 'green', senderName: '나(본인)', hasMusic: true, reactions: [] },
+];
+
+export const mockMineWeeks: WeekRecord[] = mockWeeks.map((w) => ({
+  ...w,
+  entries: w.emotion ? mineEntries : [],
+}));
+
+export const getWeeks = (kind: 'mine' | 'group') => (kind === 'mine' ? mockMineWeeks : mockWeeks);

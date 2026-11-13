@@ -5,11 +5,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppHeader from '@/components/AppHeader';
 import RecordSheet from '@/components/RecordSheet';
+import ViewMenu from '@/components/ViewMenu';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import { Colors } from '@/constants/colors';
 import { getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
-import { mockRecordStartLabel, mockWeeks } from '@/mocks/record';
+import { mockViews } from '@/mocks/home';
+import { getWeeks, mockRecordStartLabel } from '@/mocks/record';
+import { setViewIndex, useViewIndex } from '@/stores/viewStore';
 import type { WeekRecord } from '@/types/emotion';
 
 const PER_ROW = 4;
@@ -19,21 +22,18 @@ const ORB_VISIBLE = 60;
 // 주차별 기록 (피그마 '주차별_기록', 기능명세 AR-06)
 // - 한 주 = 구슬 하나, 4개씩 한 줄 / 구슬 누르면 그 주의 상세 기록 팝업
 export default function RecordScreen() {
-  const weeks = mockWeeks; // TODO: 감정 기록 API
+  const index = useViewIndex(); // 메인에서 고른 화면(내 감정 / 그룹) 그대로
+  const view = mockViews[index];
+  const weeks = getWeeks(view.kind); // TODO: 감정 기록 API
   const [openWeek, setOpenWeek] = useState<WeekRecord | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const rows: WeekRecord[][] = [];
   for (let i = 0; i < weeks.length; i += PER_ROW) rows.push(weeks.slice(i, i + PER_ROW));
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppHeader
-        title="그룹"
-        subtitle="기록장"
-        onPressTitle={() => {
-          // TODO: 그룹 ↔ 내 감정 전환
-        }}
-      />
+      <AppHeader title={view.title} subtitle="기록장" onPressTitle={() => setMenuOpen(true)} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.start}>{mockRecordStartLabel}</Text>
@@ -74,7 +74,15 @@ export default function RecordScreen() {
         ))}
       </ScrollView>
 
-      <RecordSheet week={openWeek} onClose={() => setOpenWeek(null)} />
+      <RecordSheet week={openWeek} mode={view.kind} onClose={() => setOpenWeek(null)} />
+
+      <ViewMenu
+        visible={menuOpen}
+        items={mockViews.map((v) => v.title)}
+        selectedIndex={index}
+        onSelect={setViewIndex}
+        onClose={() => setMenuOpen(false)}
+      />
     </SafeAreaView>
   );
 }
