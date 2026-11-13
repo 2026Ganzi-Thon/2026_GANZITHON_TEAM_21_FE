@@ -13,6 +13,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="reaction" />
       <Tabs.Screen name="index" />
       <Tabs.Screen name="record" />
+      {/* 탭바에는 안 보이는 화면: 메인에서 가운데 구슬 한 번 더 누르면 열림 */}
+      <Tabs.Screen name="send" />
     </Tabs>
   );
 }
