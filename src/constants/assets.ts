@@ -45,9 +45,20 @@ export const Icons = {
   circleX: require('@/assets/icons/circle-x.svg'),
   scan: require('@/assets/icons/scan.svg'),
   userAddWhite: require('@/assets/icons/user-add-white.svg'),
+  // 로그인 / 회원가입 (간편 로그인)
+  naver: require('@/assets/icons/naver.svg'),
+  google: require('@/assets/icons/google.png'),
+  phone: require('@/assets/icons/phone.svg'),
 };
 
 export const Images = {
+  // EmOri 로고 (피그마 전용 폰트라 이미지로 사용)
+  logo: require('@/assets/images/logo-emori.png'),
+  // 커버·로그인 배경 장식 구슬
+  decoPink: require('@/assets/images/orbs/deco-pink.png'),
+  decoGreen: require('@/assets/images/orbs/deco-green.png'),
+  decoPurple: require('@/assets/images/orbs/deco-purple.png'),
+  decoGray: require('@/assets/images/orbs/deco-gray.png'),
   // 흰색 방사형 그라데이션 - tintColor 로 감정 색을 입혀서 글로우로 사용
   glow: require('@/assets/images/glow.png'),
 };
