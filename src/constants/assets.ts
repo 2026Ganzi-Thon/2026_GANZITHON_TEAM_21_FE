@@ -25,6 +25,18 @@ export const Icons = {
   close: require('@/assets/icons/close.svg'),
   radioOn: require('@/assets/icons/radio-on.svg'),
   radioOff: require('@/assets/icons/radio-off.svg'),
+  check: require('@/assets/icons/check-circle.svg'),
+  headphones: require('@/assets/icons/headphones.svg'),
+};
+
+export const Images = {
+  // 흰색 방사형 그라데이션 - tintColor 로 감정 색을 입혀서 글로우로 사용
+  glow: require('@/assets/images/glow.png'),
+};
+
+// 임시 음악 (무보컬 12초). 실제 음원 받으면 교체
+export const Sounds = {
+  calm01: require('@/assets/sounds/calm-01.wav'),
 };
 
 export const Avatars = {

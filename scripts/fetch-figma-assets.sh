@@ -41,3 +41,7 @@ dl assets/icons/radio-on.svg              5f75906b-c777-44b3-a925-d503246c6d22.s
 dl assets/icons/radio-off.svg             51d4594c-ca78-4d1a-919c-aa78a34ad5c0.svg
 dl assets/images/avatars/avatar-1.png     4387bcce-214f-4d6f-b162-e8aca6e2c79a.png
 dl assets/images/avatars/avatar-2.png     decc094d-6c8c-48dd-aba4-59072b1759a4.png
+
+# ── 감정 받기 / 반응 ──
+dl assets/icons/check-circle.svg          2c9f3423-6cf0-46d5-86d6-c5dcaf2c4549.svg
+dl assets/icons/headphones.svg            533622bb-1360-4c4f-9a09-bdca5392615f.svg
