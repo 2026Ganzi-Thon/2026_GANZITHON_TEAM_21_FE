@@ -4,7 +4,11 @@ export type Recipient = {
   id: string;
   name: string;
   avatar: number; // require() 이미지
+  nearby: boolean; // 근처 친구 조건(양쪽 ON, 30분 내 위치 갱신, 약 1km) 충족 여부 - 서버가 판단
 };
+
+// 전달 경로 (기능명세 TR-01): 나에게 / 가까운 사람 / 익명
+export type SendRoute = 'me' | 'nearby' | 'anonymous';
 
 // 받은 감정구슬 (최초 수신 화면에 표시)
 export type ReceivedEmotion = {

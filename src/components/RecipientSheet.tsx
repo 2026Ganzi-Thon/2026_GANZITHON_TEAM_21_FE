@@ -1,14 +1,17 @@
 import { Image } from 'expo-image';
+import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
-import type { Recipient } from '@/types/emotion';
+import type { Recipient, SendRoute } from '@/types/emotion';
 
 type Props = {
   visible: boolean;
+  route: SendRoute;
+  onChangeRoute: (route: SendRoute) => void;
   recipients: Recipient[];
   selectedIds: string[];
   onToggle: (id: string) => void;
@@ -17,9 +20,28 @@ type Props = {
   onSend: () => void;
 };
 
-// 공유자 선택 하단 시트 (피그마 '감정_보내기3/4')
+const ROUTES: { key: SendRoute; label: string }[] = [
+  { key: 'nearby', label: '가까운 사람' },
+  { key: 'me', label: '나에게' },
+  { key: 'anonymous', label: '익명으로' },
+];
+
+// 경로별 안내 문구 (기능명세 TR-02 / TR-07 / TR-08)
+const ROUTE_INFO: Record<Exclude<SendRoute, 'nearby'>, string[]> = {
+  me: ['감정구슬을 나에게 보관해요.', '내 감정 기록에서 다시 볼 수 있어요.'],
+  anonymous: [
+    '익명의 사용자 최대 3명에게 전달돼요.',
+    '색과 감정 단어, 음악만 전달되고 누가 보냈는지는 알 수 없어요.',
+  ],
+};
+
+// 공유자 선택 하단 시트 (피그마 '감정_보내기3/4', '가까운_사람_O')
+// - 위쪽 드롭다운으로 전달 경로 선택: 가까운 사람 / 나에게 / 익명으로
+// - 가까운 사람: 근처 조건을 충족한 친구만 선택 가능, 나머지는 '친구 목록'에 흐리게
 export default function RecipientSheet({
   visible,
+  route,
+  onChangeRoute,
   recipients,
   selectedIds,
   onToggle,
@@ -28,7 +50,40 @@ export default function RecipientSheet({
   onSend,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const [menuOpen, setMenuOpen] = useState(false);
   const count = selectedIds.length;
+  const nearby = recipients.filter((r) => r.nearby);
+  const others = recipients.filter((r) => !r.nearby);
+
+  const sendLabel =
+    route === 'me'
+      ? '나에게 보내기'
+      : route === 'anonymous'
+        ? '익명으로 보내기'
+        : `${count} 곳에 보내기`;
+  const canSend = route !== 'nearby' || count > 0;
+
+  const renderRow = (r: Recipient, disabled: boolean) => {
+    const on = selectedIds.includes(r.id);
+    return (
+      <Pressable
+        key={r.id}
+        onPress={() => onToggle(r.id)}
+        disabled={disabled}
+        style={[styles.row, disabled && styles.rowDisabled]}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: on, disabled }}
+      >
+        <Image source={r.avatar} style={styles.avatar} contentFit="cover" />
+        <Text style={styles.name}>{r.name}</Text>
+        <Image
+          source={on ? Icons.radioOn : Icons.radioOff}
+          style={styles.radio}
+          contentFit="contain"
+        />
+      </Pressable>
+    );
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -49,32 +104,63 @@ export default function RecipientSheet({
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-          {recipients.map((r) => {
-            const on = selectedIds.includes(r.id);
-            return (
-              <Pressable
-                key={r.id}
-                onPress={() => onToggle(r.id)}
-                style={styles.row}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: on }}
-              >
-                <Image source={r.avatar} style={styles.avatar} contentFit="cover" />
-                <Text style={styles.name}>{r.name}</Text>
-                <Image
-                  source={on ? Icons.radioOn : Icons.radioOff}
-                  style={styles.radio}
-                  contentFit="contain"
-                />
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {/* 전달 경로 드롭다운 */}
+        <View style={styles.routeWrap}>
+          <Pressable
+            style={styles.routeButton}
+            onPress={() => setMenuOpen((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel="전달 경로 선택"
+          >
+            <Text style={styles.section}>{ROUTES.find((r) => r.key === route)!.label}</Text>
+            <Image
+              source={Icons.chevronDown}
+              style={[styles.chevron, menuOpen && styles.chevronUp]}
+              contentFit="contain"
+              tintColor="#808B9F"
+            />
+          </Pressable>
+          {menuOpen && (
+            <View style={styles.menu}>
+              {ROUTES.map((r) => (
+                <Pressable
+                  key={r.key}
+                  style={styles.menuItem}
+                  onPress={() => {
+                    onChangeRoute(r.key);
+                    setMenuOpen(false);
+                  }}
+                >
+                  <Text style={[styles.menuText, r.key === route && styles.menuTextOn]}>
+                    {r.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
 
-        {count > 0 && (
+        {route === 'nearby' ? (
+          <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+            {nearby.length === 0 && (
+              <Text style={styles.empty}>지금 근처에 있는 친구가 없어요.</Text>
+            )}
+            {nearby.map((r) => renderRow(r, false))}
+            {others.length > 0 && (
+              <Text style={[styles.section, styles.sectionGap]}>친구 목록</Text>
+            )}
+            {others.map((r) => renderRow(r, true))}
+          </ScrollView>
+        ) : (
+          <View style={styles.info}>
+            <Text style={styles.infoTitle}>{ROUTE_INFO[route][0]}</Text>
+            <Text style={styles.infoSub}>{ROUTE_INFO[route][1]}</Text>
+          </View>
+        )}
+
+        {canSend && (
           <Pressable style={styles.sendButton} onPress={onSend}>
-            <Text style={styles.sendText}>{count} 곳에 보내기</Text>
+            <Text style={styles.sendText}>{sendLabel}</Text>
           </Pressable>
         )}
       </View>
@@ -118,7 +204,48 @@ const styles = StyleSheet.create({
   close: { position: 'absolute', right: 0, width: 30, height: 30 },
   // close.svg 에 그림자 여백이 포함돼 있어서 버튼보다 크게 그림
   closeIcon: { position: 'absolute', left: -15, top: -15, width: 62, height: 62 },
+  routeWrap: { marginTop: 10, marginHorizontal: 12, zIndex: 5 },
+  routeButton: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
+  section: { fontFamily: Fonts.medium, fontSize: 15, color: '#808B9F' },
+  sectionGap: { marginTop: 10, marginLeft: -7 },
+  chevron: { width: 14, height: 17 },
+  chevronUp: { transform: [{ rotate: '180deg' }] },
+  menu: {
+    position: 'absolute',
+    top: 26,
+    left: 0,
+    width: 150,
+    borderRadius: 12,
+    backgroundColor: '#2A2A2A',
+    paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  menuItem: { paddingVertical: 10, paddingHorizontal: 14 },
+  menuText: { fontFamily: Fonts.regular, fontSize: 15, color: Colors.textSecondary },
+  menuTextOn: { fontFamily: Fonts.semiBold, color: Colors.white },
   list: { paddingTop: 11, paddingHorizontal: 19, paddingBottom: 90, gap: 13 },
+  rowDisabled: { opacity: 0.35 },
+  empty: {
+    marginVertical: 12,
+    textAlign: 'center',
+    fontFamily: Fonts.regular,
+    fontSize: 14,
+    color: Colors.textMuted,
+  },
+  info: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 70, gap: 8 },
+  infoTitle: { fontFamily: Fonts.semiBold, fontSize: 16, color: Colors.textSecondary },
+  infoSub: {
+    paddingHorizontal: 30,
+    textAlign: 'center',
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.textMuted,
+  },
   row: {
     height: 64,
     borderRadius: 17,
