@@ -71,7 +71,13 @@ export default function SendScreen() {
       ? ['지금 느끼는 감정을 보내보세요.', '+를 눌러 구슬 색상 추가하기.']
       : emotions.length === 0
         ? ['휠을 돌려 감정을 확인 하세요.', '터치 혹은 구슬을 눌러 선택하기.']
-        : ['감정 선택을 마쳤다면 바깥을 터치', '혹은 하나 더 골라 감정을 섞어보세요.'];
+        : // 고른 감정의 이름과 단어를 보여줘서 무슨 감정인지 확인할 수 있게
+          [
+            emotions.map((k) => getEmotion(k).label).join(' + '),
+            emotions.length === 1
+              ? `${firstEmotion!.words.join(', ')}\n바깥을 터치하면 보내기, 하나 더 고르면 섞기`
+              : '바깥을 터치해서 보내기',
+          ];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -150,6 +156,7 @@ const styles = StyleSheet.create({
   },
   hint: {
     marginTop: 3,
+    textAlign: 'center',
     fontFamily: Fonts.regular,
     fontSize: 13,
     lineHeight: 19,
