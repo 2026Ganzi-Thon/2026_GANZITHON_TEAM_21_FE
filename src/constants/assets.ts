@@ -52,6 +52,8 @@ export const Icons = {
 };
 
 export const Images = {
+  // 알림 배너 왼쪽 EO 앱 아이콘
+  appIcon: require('@/assets/images/app-icon.png'),
   // EmOri 로고 (피그마 전용 폰트라 이미지로 사용)
   logo: require('@/assets/images/logo-emori.png'),
   // 커버·로그인 배경 장식 구슬

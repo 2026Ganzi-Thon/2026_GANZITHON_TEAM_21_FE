@@ -1,0 +1,40 @@
+import type { Href } from 'expo-router';
+import { useSyncExternalStore } from 'react';
+
+import type { EmotionKey } from '@/types/emotion';
+
+// 앱 안 알림 배너 (피그마 '알림')
+// TODO: 연동 시 서버 푸시(expo-notifications) / 실시간 이벤트를 받아서 notify() 호출
+export type InAppNotification = {
+  id: string;
+  title: string; // 감정을 받았어요
+  body: string; // 서현님이 감정을 보냈어요.
+  hint?: string; // 앱을 열거나 위젯에서 반응해보세요.
+  emotion?: EmotionKey; // 오른쪽 미리보기: 감정 구슬
+  emoji?: string; // 또는 반응 이모지
+  href?: Href; // 누르면 이동할 화면
+};
+
+let current: InAppNotification | null = null;
+const listeners = new Set<() => void>();
+const emit = () => listeners.forEach((l) => l());
+
+export function showNotification(n: Omit<InAppNotification, 'id'>) {
+  current = { ...n, id: String(Date.now()) };
+  emit();
+}
+
+export function dismissNotification() {
+  current = null;
+  emit();
+}
+
+export function useCurrentNotification() {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => current,
+  );
+}

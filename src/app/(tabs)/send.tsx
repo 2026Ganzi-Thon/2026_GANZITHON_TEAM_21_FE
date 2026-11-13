@@ -30,6 +30,7 @@ import { Colors } from '@/constants/colors';
 import { getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import { useOrbMusic } from '@/hooks/useOrbMusic';
+import { notifyReacted } from '@/mocks/notifications';
 import { mockRecipients } from '@/mocks/send';
 import { spendCredit, useCredits } from '@/stores/creditStore';
 import type { EmotionKey, SendRoute } from '@/types/emotion';
@@ -147,6 +148,7 @@ export default function SendScreen() {
           ? '익명으로 감정을 보냈어요.'
           : `${recipientIds.length}곳에 감정을 보냈어요.`;
     reset();
+    setTimeout(notifyReacted, 6000); // TODO: 시연용 가짜 반응 알림. 연동 시 삭제
     notify('전송 완료', `${done}\n${labels}${hasMusic ? ' · 음악 포함' : ''}`);
     router.navigate('/');
   };
