@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { Images } from '@/constants/assets';
-import { getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import { dismissNotification, useCurrentNotification } from '@/stores/notificationStore';
 
@@ -86,17 +85,9 @@ export default function NotificationBanner() {
                 </Text>
               )}
             </View>
-            {(n.emotion || n.emoji) && (
+            {n.emoji && (
               <View style={styles.preview}>
-                {n.emotion ? (
-                  <Image
-                    source={getEmotion(n.emotion).image}
-                    style={orbImageStyle(n.emotion, 38)}
-                    contentFit="contain"
-                  />
-                ) : (
-                  <Text style={styles.emoji}>{n.emoji}</Text>
-                )}
+                <Text style={styles.emoji}>{n.emoji}</Text>
               </View>
             )}
           </BlurView>

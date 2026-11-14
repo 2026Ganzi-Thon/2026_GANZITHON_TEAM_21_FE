@@ -57,7 +57,7 @@ export default function SendScreen() {
   const [step, setStep] = useState<Step>('empty');
   const [emotions, setEmotions] = useState<EmotionKey[]>([]);
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
-  const [route, setRoute] = useState<SendRoute>('nearby');
+  const [route, setRoute] = useState<SendRoute>('friends');
   const [prompt, setPrompt] = useState('');
   const [hasMusic, setHasMusic] = useState(false);
   const credits = useCredits();
@@ -131,14 +131,14 @@ export default function SendScreen() {
     setStep('empty');
     setEmotions([]);
     setRecipientIds([]);
-    setRoute('nearby');
+    setRoute('friends');
     setPrompt('');
     setHasMusic(false);
   };
 
   const onSend = () => {
     // TODO: 백엔드 연동 - 감정 전송 API
-    // { emotions: ['yellow', 'blue'], route: 'nearby' | 'me' | 'anonymous', recipientIds,
+    // { emotions: ['yellow', 'blue'], route: 'friends' | 'me' | 'anonymous', recipientIds,
     //   music: hasMusic ? { prompt, musicId } : null }
     const labels = emotions.map((k) => getEmotion(k).label).join(' · ');
     const done =

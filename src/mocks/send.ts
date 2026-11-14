@@ -1,4 +1,4 @@
-// 가짜 데이터 - 백엔드 연동 시 친구/그룹 목록 API로 교체
+// 가짜 데이터 - 백엔드 연동 시 친구/그룹 목록 API로 교체 (친구끼리만 보낼 수 있음)
 import { Avatars } from '@/constants/assets';
 import type { Recipient } from '@/types/emotion';
 
