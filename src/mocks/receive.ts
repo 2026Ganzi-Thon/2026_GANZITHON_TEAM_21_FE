@@ -12,6 +12,7 @@ export const mockInbox: ReceivedEmotion[] = [
     emotions: ['blue', 'purple'], // 섞은 구슬
     music: Sounds.calm01,
     reacted: false,
+    opened: false,
   },
   {
     id: 'r2',
@@ -21,6 +22,7 @@ export const mockInbox: ReceivedEmotion[] = [
     emotions: ['yellow'],
     music: Sounds.calm01,
     reacted: false,
+    opened: false,
   },
   {
     id: 'r3',
@@ -30,6 +32,7 @@ export const mockInbox: ReceivedEmotion[] = [
     emotions: ['purple'],
     music: Sounds.calm01,
     reacted: false,
+    opened: true,
   },
   {
     id: 'r4',
@@ -38,6 +41,7 @@ export const mockInbox: ReceivedEmotion[] = [
     sentAtLabel: '어제',
     emotions: ['orange'],
     reacted: false,
+    opened: true,
   },
 ];
 

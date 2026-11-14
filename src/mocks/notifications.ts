@@ -10,7 +10,7 @@ export const notifyReceived = () =>
     title: '감정을 받았어요',
     body: '새로운 감정구슬이 도착했어요.',
     hint: '앱을 열어 확인해보세요.',
-    href: { pathname: '/reaction', params: { id: mockLatestReceived.id } },
+    href: { pathname: '/received', params: { id: mockLatestReceived.id } },
   });
 
 // 익명으로 보낸 내 구슬에 반응이 옴 (친구 사이에는 반응 기능 없음) → 누르면 기록

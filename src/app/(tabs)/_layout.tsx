@@ -39,6 +39,11 @@ export default function TabsLayout() {
       <Tabs.Screen name="settings" />
       {/* 헤더 👤+ */}
       <Tabs.Screen name="friend-add" />
+      {/* 설정 > 잠시 쉬기 / 홈 케어 카드 > 마음 돋보기 */}
+      <Tabs.Screen name="rest" />
+      {/* 수신함(반응 탭)에서 연 단일 감정구슬 화면 */}
+      <Tabs.Screen name="received" />
+      <Tabs.Screen name="care" />
     </Tabs>
   );
 }

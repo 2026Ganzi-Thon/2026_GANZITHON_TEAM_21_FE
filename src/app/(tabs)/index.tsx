@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppHeader from '@/components/AppHeader';
 import EmotionOrb from '@/components/EmotionOrb';
+import CareCard, { useCareStage } from '@/components/CareCard';
 import PageDots from '@/components/PageDots';
 import RecordSheet from '@/components/RecordSheet';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
@@ -19,6 +20,7 @@ import { setViewIndex, useViewIndex } from '@/stores/viewStore';
 // - 0번 = 내 감정, 1번~ = 그룹. 제목 ⌄ 메뉴, 페이지 점, 좌우 스와이프로 전환
 // - 구슬 누르면 이번 주 상세 기록
 export default function HomeScreen() {
+  const careStage = useCareStage();
   const index = useViewIndex();
   const view = mockViews[index];
   const [menuOpen, setMenuOpen] = useState(false);
@@ -69,8 +71,17 @@ export default function HomeScreen() {
           <PageDots count={mockViews.length} activeIndex={index} onPressDot={go} />
         </View>
 
-        <Text style={styles.message}>{view.message}</Text>
-        <Text style={styles.hint}>구슬을 눌러 감정 기록을 확인해보세요.</Text>
+        {/* 최근 무거운 감정이 반복되면 안내 문구 대신 케어 카드 (PRD 6장) */}
+        {careStage ? (
+          <View style={styles.care}>
+            <CareCard stage={careStage} />
+          </View>
+        ) : (
+          <>
+            <Text style={styles.message}>{view.message}</Text>
+            <Text style={styles.hint}>구슬을 눌러 감정 기록을 확인해보세요.</Text>
+          </>
+        )}
       </ScrollView>
 
       {/* 구슬 누르면 이번 주 상세 기록 (기능명세 AR-02 / AR-03) */}
@@ -99,6 +110,7 @@ const styles = StyleSheet.create({
     paddingBottom: TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_GAP + 40,
   },
   dots: { marginTop: 40, marginBottom: 58 },
+  care: { alignSelf: 'stretch', marginTop: -24 },
   message: {
     fontFamily: Fonts.semiBold,
     fontSize: 16,

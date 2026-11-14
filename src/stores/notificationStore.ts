@@ -1,6 +1,8 @@
 import type { Href } from 'expo-router';
 import { useSyncExternalStore } from 'react';
 
+import { isResting } from '@/stores/restStore';
+
 // 앱 안 알림 배너 (피그마 '알림')
 // TODO: 연동 시 서버 푸시(expo-notifications) / 실시간 이벤트를 받아서 notify() 호출
 export type InAppNotification = {
@@ -17,6 +19,7 @@ const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
 export function showNotification(n: Omit<InAppNotification, 'id'>) {
+  if (isResting()) return; // 휴식 중엔 알림을 띄우지 않음 (구슬은 수신함에 보관)
   current = { ...n, id: String(Date.now()) };
   emit();
 }
