@@ -19,6 +19,7 @@ export type ReceivedEmotion = {
   emotions: EmotionKey[]; // 1개 또는 섞은 2개 (PRD 3-3: 원본 감정 각각 보존)
   music?: number; // 첨부 음악 (require() 오디오). 없으면 음악 기능 비활성화
   reacted: boolean; // 이미 반응했거나 조용히 듣기를 골랐는지
+  opened: boolean; // 한 번이라도 열어봤는지 (안 열었으면 수신함에 '새 구슬'로 표시)
 };
 
 // 주차별 기록 - 한 주에 모인 감정들 (상세 기록 팝업에 표시)
