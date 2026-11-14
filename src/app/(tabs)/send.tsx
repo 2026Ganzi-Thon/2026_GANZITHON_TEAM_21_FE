@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
   Platform,
@@ -49,7 +49,9 @@ const PROMPT_MAX = 100;
 // 단계
 // empty(+) → pick(휠) → ask(음악 넣을지) → prompt(음악 설명) → generating → ready(완성) → share
 //                                └ 감정 구슬만 보내기 ─────────────────────────────────→ share
-type Step = 'empty' | 'pick' | 'ask' | 'prompt' | 'generating' | 'ready' | 'share';
+type Step = 'empty' | 'pick' | 'ask' | 'prompt' | 'generating' | 'ready' | 'share' | 'sent';
+
+const CANCEL_MS = 5 * 60 * 1000; // 보낸 뒤 5분 안에만 취소 가능 (PRD 5-4)
 
 // 감정 보내기 (피그마 '감정_보내기' ~ '감정_보내기4', '감정_보내기_음악_크레딧_소지' 1~5)
 export default function SendScreen() {
@@ -60,6 +62,18 @@ export default function SendScreen() {
   const [route, setRoute] = useState<SendRoute>('friends');
   const [prompt, setPrompt] = useState('');
   const [hasMusic, setHasMusic] = useState(false);
+  const [sent, setSent] = useState<{ at: number; done: string; labels: string } | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const demoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 전송 완료 화면: 취소 가능 시간 1초마다 갱신
+  useEffect(() => {
+    if (step !== 'sent') return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [step]);
+  const remaining = sent ? Math.max(0, sent.at + CANCEL_MS - now) : 0;
+  const mmss = `${Math.floor(remaining / 60000)}:${String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0')}`;
   const credits = useCredits();
   // TODO: 연동 시 생성된 음악 URL 로 교체
   const music = useOrbMusic(hasMusic ? Sounds.calm01 : undefined);
@@ -128,6 +142,7 @@ export default function SendScreen() {
 
   const reset = () => {
     music.stop();
+    setSent(null);
     setStep('empty');
     setEmotions([]);
     setRecipientIds([]);
@@ -147,9 +162,32 @@ export default function SendScreen() {
         : route === 'anonymous'
           ? '익명으로 감정을 보냈어요.'
           : `${recipientIds.length}곳에 감정을 보냈어요.`;
+    music.stop();
+    const at = Date.now();
+    setSent({ at, done, labels: `${labels}${hasMusic ? ' · 음악 포함' : ''}` });
+    setNow(at);
+    setStep('sent');
+    // TODO: 시연용 가짜 반응 알림 (반응은 익명으로 보낸 구슬에만). 연동 시 삭제
+    if (route === 'anonymous') demoTimer.current = setTimeout(notifyReacted, 6000);
+  };
+
+  // 보내기 취소: 5분 이내 + 상대가 아직 안 열었을 때만 (열었는지는 서버가 판단)
+  const onCancelSend = () =>
+    confirm({
+      title: '보내기를 취소할까요?',
+      message: '상대방이 아직 확인하지 않았다면 보낸 감정구슬이 사라져요.',
+      okText: '보내기 취소',
+      destructive: true,
+      onOk: () => {
+        // TODO: 전송 취소 API → 이미 열람했으면 실패 응답 → '이미 확인한 구슬이에요' 안내
+        if (demoTimer.current) clearTimeout(demoTimer.current);
+        reset();
+        notify('보내기를 취소했어요.');
+      },
+    });
+
+  const onDone = () => {
     reset();
-    setTimeout(notifyReacted, 6000); // TODO: 시연용 가짜 반응 알림. 연동 시 삭제
-    notify('전송 완료', `${done}\n${labels}${hasMusic ? ' · 음악 포함' : ''}`);
     router.navigate('/');
   };
 
@@ -157,7 +195,11 @@ export default function SendScreen() {
   const firstEmotion = first ? getEmotion(first) : undefined;
 
   const isMusicStep =
-    step === 'ask' || step === 'prompt' || step === 'generating' || step === 'ready';
+    step === 'ask' ||
+    step === 'prompt' ||
+    step === 'generating' ||
+    step === 'ready' ||
+    step === 'sent';
   const words = emotions.flatMap((k) => getEmotion(k).words).slice(0, 3);
 
   const message =
@@ -307,6 +349,45 @@ export default function SendScreen() {
           </View>
         )}
 
+        {/* 전송 완료 + 보내기 취소 (기획 답변: 완료 화면에 취소 버튼 + 남은 시간) */}
+        {step === 'sent' && sent && (
+          <View style={styles.panel}>
+            <Text style={styles.message}>{sent.done}</Text>
+            <Text style={styles.hint}>{sent.labels}</Text>
+            <View style={styles.sentButtons}>
+              {route !== 'me' && remaining > 0 && (
+                <Pressable
+                  onPress={onCancelSend}
+                  style={({ pressed }) => [
+                    styles.btnHalf,
+                    styles.btnDark,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={styles.btnLabel}>보내기 취소</Text>
+                </Pressable>
+              )}
+              <Pressable
+                onPress={onDone}
+                style={({ pressed }) => [
+                  styles.btnHalf,
+                  styles.btnAccent,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.btnLabel}>확인</Text>
+              </Pressable>
+            </View>
+            {route !== 'me' && (
+              <Text style={styles.credit}>
+                {remaining > 0
+                  ? `${mmss} 동안 보내기를 취소할 수 있어요`
+                  : '취소 가능한 시간이 지났어요'}
+              </Text>
+            )}
+          </View>
+        )}
+
         {step === 'ready' && (
           <View style={styles.panel} pointerEvents="none">
             <Text style={styles.message}>{words.join(', ')}…</Text>
@@ -399,6 +480,20 @@ const styles = StyleSheet.create({
   },
   bar: { height: '100%', borderRadius: 3, backgroundColor: Colors.white },
   headphones: { marginTop: 14, marginBottom: 10, width: 22, height: 22 },
+  sentButtons: {
+    alignSelf: 'stretch',
+    marginTop: 22,
+    marginHorizontal: 34,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  btnHalf: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   texts: { alignItems: 'center', marginTop: 8 },
   message: {
     fontFamily: Fonts.semiBold,
