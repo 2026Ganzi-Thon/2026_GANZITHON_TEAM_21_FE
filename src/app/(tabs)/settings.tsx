@@ -13,7 +13,7 @@ import { Fonts } from '@/constants/typography';
 import { signOut } from '@/stores/authStore';
 import { notify, confirm } from '@/utils/dialog';
 
-type ToggleKey = 'nearby' | 'anonymous' | 'push' | 'mindLens' | 'swipeMusic';
+type ToggleKey = 'anonymous' | 'push' | 'mindLens' | 'swipeMusic';
 
 type Row =
   | { kind: 'toggle'; key: ToggleKey; title: string; desc: string }
@@ -32,17 +32,10 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
     rows: [
       {
         kind: 'toggle',
-        key: 'nearby',
-        title: '가까운 친구 찾기',
-        desc: '위치 정보를 기반으로 가까운 친구에게 감정을 보내기',
-      },
-      {
-        kind: 'toggle',
         key: 'anonymous',
         title: '익명 구슬 받기',
         desc: '익명으로 아무에게 감정을 주고 받기(성인 전용)',
       },
-      { kind: 'link', title: '차단한 사용자 관리', desc: '익명의 사용자 차단 내역을 관리·해제' },
     ],
   },
   {
@@ -80,7 +73,6 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
 export default function SettingsScreen() {
   // TODO: 설정 조회/저장 API
   const [values, setValues] = useState<Record<ToggleKey, boolean>>({
-    nearby: true,
     anonymous: false,
     push: true,
     mindLens: true,

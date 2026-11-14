@@ -2,22 +2,23 @@
 import { mockLatestReceived } from '@/mocks/receive';
 import { showNotification } from '@/stores/notificationStore';
 
-// 친구가 나에게 감정을 보냄 → 누르면 받은 감정 화면
+// PRD 7장: 알림에는 감정 색·단어·음악을 보여주지 않음 → '새 구슬 도착'만 안내
+
+// 새 감정구슬 도착 → 누르면 받은 구슬 화면
 export const notifyReceived = () =>
   showNotification({
     title: '감정을 받았어요',
-    body: `${mockLatestReceived.senderName}님이 감정을 보냈어요.`,
-    hint: '앱을 열거나 위젯에서 반응해보세요.',
-    emotion: mockLatestReceived.emotion,
-    href: '/reaction',
+    body: '새로운 감정구슬이 도착했어요.',
+    hint: '앱을 열어 확인해보세요.',
+    href: { pathname: '/reaction', params: { id: mockLatestReceived.id } },
   });
 
-// 친구가 내 감정에 반응함 → 누르면 기록
+// 익명으로 보낸 내 구슬에 반응이 옴 (친구 사이에는 반응 기능 없음) → 누르면 기록
 export const notifyReacted = () =>
   showNotification({
-    title: '친구가 반응했어요',
-    body: '서현님이 내 감정에 반응했어요.',
+    title: '반응이 도착했어요',
+    body: '익명의 사용자가 내 감정에 반응했어요.',
     hint: '앱을 열어 확인해보세요.',
-    emoji: '😆',
+    emoji: '🫂',
     href: '/record',
   });

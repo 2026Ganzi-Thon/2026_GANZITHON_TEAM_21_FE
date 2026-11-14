@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import { useEffect } from 'react';
 import {
   Modal,
@@ -48,6 +49,12 @@ export default function RecordSheet({ week, mode = 'group', onClose, onPressEntr
   const insets = useSafeAreaInsets();
   const { height: screenH } = useWindowDimensions();
   const visible = !!week;
+
+  const openReceived = (entry: RecordEntry) => {
+    if (!entry.receivedId) return;
+    onClose();
+    router.navigate({ pathname: '/reaction', params: { id: entry.receivedId, replay: '1' } });
+  };
 
   // 시트가 원래 자리에서 아래로 밀려난 거리 (0 = 다 열림)
   const offset = useSharedValue(screenH);
@@ -125,32 +132,55 @@ export default function RecordSheet({ week, mode = 'group', onClose, onPressEntr
               <Text style={styles.empty}>이 주에는 아직 기록이 없어요.</Text>
             )}
             {week?.entries.map((entry) => {
-              const emotion = getEmotion(entry.emotion);
+              const [first, second] = entry.emotions;
+              const labels = entry.emotions.map((k) => getEmotion(k).label).join(' + ');
               const extra = entry.reactions.length - MAX_REACTIONS;
+              // 받은 구슬은 눌러서 그때 수신 화면으로 재진입 (PRD 4-4)
+              const canOpen = !!entry.receivedId || !!onPressEntry;
               return (
                 <Pressable
                   key={entry.id}
-                  style={styles.row}
-                  onPress={onPressEntry ? () => onPressEntry(entry) : undefined}
-                  disabled={!onPressEntry}
-                  accessibilityLabel={`${entry.senderName}, ${emotion.label}`}
+                  style={({ pressed }) => [styles.row, pressed && canOpen && styles.rowPressed]}
+                  onPress={() => (onPressEntry ? onPressEntry(entry) : openReceived(entry))}
+                  disabled={!canOpen}
+                  accessibilityLabel={`${entry.senderName}, ${labels}`}
                 >
                   <View style={styles.colEmotion}>
                     <View style={styles.orbBox}>
                       <Image
-                        source={emotion.image}
-                        style={orbImageStyle(entry.emotion, ORB)}
+                        source={getEmotion(first).image}
+                        style={orbImageStyle(first, ORB)}
                         contentFit="contain"
                       />
+                      {/* 섞은 구슬: 두 번째 감정을 반투명으로 겹침 (보내기 화면과 같은 방식) */}
+                      {second && (
+                        <View style={[StyleSheet.absoluteFill, styles.orbBox, styles.overlay]}>
+                          <Image
+                            source={getEmotion(second).image}
+                            style={orbImageStyle(second, ORB)}
+                            contentFit="contain"
+                          />
+                        </View>
+                      )}
                     </View>
                   </View>
-                  <View style={[styles.colSender, styles.sender]}>
-                    <Text style={styles.name} numberOfLines={1}>
-                      {entry.senderName}
+                  <View style={styles.colSender}>
+                    <View style={styles.sender}>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {entry.senderName}
+                      </Text>
+                      {entry.hasMusic && (
+                        <Image
+                          source={Icons.headphones}
+                          style={styles.music}
+                          contentFit="contain"
+                        />
+                      )}
+                    </View>
+                    {/* 감정 이름 (섞은 구슬이면 두 감정 모두, PRD 4-4) */}
+                    <Text style={styles.labels} numberOfLines={1}>
+                      {labels}
                     </Text>
-                    {entry.hasMusic && (
-                      <Image source={Icons.headphones} style={styles.music} contentFit="contain" />
-                    )}
                   </View>
                   <View style={[styles.colReaction, styles.reactions]}>
                     {entry.reactions.slice(0, MAX_REACTIONS).map((r, i) => (
@@ -227,6 +257,14 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   orbBox: { width: ORB, height: ORB, alignItems: 'center', justifyContent: 'center' },
+  overlay: { opacity: 0.55 },
+  rowPressed: { opacity: 0.7 },
+  labels: {
+    marginTop: 2,
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
   sender: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { fontFamily: Fonts.regular, fontSize: 16, color: Colors.white },
   music: { width: 22, height: 22 },
