@@ -89,4 +89,4 @@ export const mockMineWeeks: WeekRecord[] = mockWeeks.map((w) => ({
   entries: w.emotion ? mineEntries : [],
 }));
 
-export const getWeeks = (kind: 'mine' | 'group') => (kind === 'mine' ? mockMineWeeks : mockWeeks);
+export const getWeeks = (kind: 'mine' | 'all') => (kind === 'mine' ? mockMineWeeks : mockWeeks);

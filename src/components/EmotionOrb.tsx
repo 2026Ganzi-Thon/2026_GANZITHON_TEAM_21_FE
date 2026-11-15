@@ -74,7 +74,10 @@ export default function EmotionOrb({
         <View style={[StyleSheet.absoluteFill, styles.center]} pointerEvents="none">
           <Image
             source={overlaySource}
-            style={[overlayImageStyle ?? { width: defaultImage, height: defaultImage }, styles.overlay]}
+            style={[
+              overlayImageStyle ?? { width: defaultImage, height: defaultImage },
+              styles.overlay,
+            ]}
             contentFit="contain"
           />
         </View>

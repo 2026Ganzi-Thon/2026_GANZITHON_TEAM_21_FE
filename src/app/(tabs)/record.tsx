@@ -24,7 +24,7 @@ const COL_LEFT = 44; // 첫 칸 왼쪽 (칸 너비 80 → 구슬 중심 84)
 // 주차별 기록 (피그마 '주차별_기록', 기능명세 AR-06)
 // - 한 주 = 구슬 하나, 4개씩 한 줄 / 구슬 누르면 그 주의 상세 기록 팝업
 export default function RecordScreen() {
-  const index = useViewIndex(); // 메인에서 고른 화면(내 감정 / 그룹) 그대로
+  const index = useViewIndex(); // 메인에서 고른 화면(내 감정 / 전체 감정) 그대로
   const view = mockViews[index];
   const weeks = getWeeks(view.kind); // TODO: 감정 기록 API
   const [openWeek, setOpenWeek] = useState<WeekRecord | null>(null);

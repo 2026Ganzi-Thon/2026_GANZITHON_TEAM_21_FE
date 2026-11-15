@@ -17,7 +17,8 @@ import { getWeeks } from '@/mocks/record';
 import { setViewIndex, useViewIndex } from '@/stores/viewStore';
 
 // 01 메인 (피그마 '메인' / '내 메인')
-// - 0번 = 내 감정, 1번~ = 그룹. 제목 ⌄ 메뉴, 페이지 점, 좌우 스와이프로 전환
+// - 0번 = 내 감정, 1번 = 전체 감정(메인 오브제). 제목 ⌄ 메뉴, 페이지 점, 좌우 스와이프로 전환
+// - 그룹 화면은 PRD v1.4에서 후속 기능이라 뺌
 // - 구슬 누르면 이번 주 상세 기록
 export default function HomeScreen() {
   const careStage = useCareStage();

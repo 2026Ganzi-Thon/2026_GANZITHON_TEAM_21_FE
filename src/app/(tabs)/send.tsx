@@ -1,23 +1,7 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import {
-  Keyboard,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedKeyboard,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppHeader from '@/components/AppHeader';
@@ -25,14 +9,14 @@ import EmotionOrb from '@/components/EmotionOrb';
 import EmotionWheel, { WHEEL_SIZE } from '@/components/EmotionWheel';
 import MusicOrb from '@/components/MusicOrb';
 import RecipientSheet from '@/components/RecipientSheet';
-import { Icons, Sounds } from '@/constants/assets';
+import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { EMOTIONS, getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import { useOrbMusic } from '@/hooks/useOrbMusic';
 import { notifyReacted } from '@/mocks/notifications';
 import { mockRecipients } from '@/mocks/send';
-import { spendCredit, useCredits } from '@/stores/creditStore';
+import { mockSounds } from '@/mocks/sounds';
 import type { EmotionKey, SendRoute } from '@/types/emotion';
 import { confirm, notify } from '@/utils/dialog';
 
@@ -42,14 +26,13 @@ const STAGE_HEIGHT = 470;
 const CENTER_Y = 224; // 헤더 아래 ~ 휠 중심 (피그마 기준)
 const ORB_CENTER_Y = CENTER_Y; // 가운데 큰 구슬 = 휠 중심 (피그마)
 const MAX_EMOTIONS = 2;
-const PANEL_TOP = 400; // 음악 단계 안내·버튼 시작 위치 (탭바와 안 겹치게 고정)
-const GENERATE_MS = 4000; // 가짜 음악 생성 시간
-const PROMPT_MAX = 100;
+const PANEL_TOP = 400; // 소리 단계 안내·버튼 시작 위치 (탭바와 안 겹치게 고정)
 
 // 단계
-// empty(+) → pick(휠) → ask(음악 넣을지) → prompt(음악 설명) → generating → ready(완성) → share
-//                                └ 감정 구슬만 보내기 ─────────────────────────────────→ share
-type Step = 'empty' | 'pick' | 'ask' | 'prompt' | 'generating' | 'ready' | 'share' | 'sent';
+// empty(+) → pick(휠) → ask(소리 넣을지) → sound(제공 소리 고르기) → ready(소리 구슬) → share
+//                                └ 감정 구슬만 보내기 ──────────────────────────────→ share
+// PRD v1.4: 소리는 서비스가 제공하는 15초 이내 무보컬 사운드 중에서 고름 (AI 생성·크레딧 없음)
+type Step = 'empty' | 'pick' | 'ask' | 'sound' | 'ready' | 'share' | 'sent';
 
 const CANCEL_MS = 5 * 60 * 1000; // 보낸 뒤 5분 안에만 취소 가능 (PRD 5-4)
 
@@ -60,7 +43,7 @@ export default function SendScreen() {
   const [emotions, setEmotions] = useState<EmotionKey[]>([]);
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
   const [route, setRoute] = useState<SendRoute>('friends');
-  const [prompt, setPrompt] = useState('');
+  const [soundId, setSoundId] = useState<string | null>(null);
   const [hasMusic, setHasMusic] = useState(false);
   const [sent, setSent] = useState<{ at: number; done: string; labels: string } | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -74,30 +57,15 @@ export default function SendScreen() {
   }, [step]);
   const remaining = sent ? Math.max(0, sent.at + CANCEL_MS - now) : 0;
   const mmss = `${Math.floor(remaining / 60000)}:${String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0')}`;
-  const credits = useCredits();
-  // TODO: 연동 시 생성된 음악 URL 로 교체
-  const music = useOrbMusic(hasMusic ? Sounds.calm01 : undefined);
+  const sound = mockSounds.find((x) => x.id === soundId); // TODO: GET /catalog/sounds
+  const music = useOrbMusic(sound?.source);
 
-  // 음악 생성 진행 막대
-  const progress = useSharedValue(0);
+  // 소리를 고르면 바로 한 번 들려줌 (고르는 단계에서만. 자동 재생 금지는 받는 사람 화면 기준)
   useEffect(() => {
-    if (step !== 'generating') return;
-    progress.set(0);
-    progress.set(withTiming(1, { duration: GENERATE_MS, easing: Easing.out(Easing.quad) }));
-    // TODO: 음악 생성 API (prompt, emotions) → 완료되면 ready
-    const t = setTimeout(() => {
-      setHasMusic(true);
-      setStep('ready');
-    }, GENERATE_MS);
+    if (step !== 'sound' || !soundId) return;
+    const t = setTimeout(music.play, 200); // 새 음원을 불러올 시간
     return () => clearTimeout(t);
-  }, [step, progress]);
-  const barStyle = useAnimatedStyle(() => ({ width: `${progress.get() * 100}%` }));
-
-  // 음악 설명 입력할 때 키보드에 가리지 않게 화면을 올림
-  const keyboard = useAnimatedKeyboard();
-  const liftStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -Math.max(0, keyboard.height.get() - 250) }],
-  }));
+  }, [step, soundId, music.play]);
 
   const toggleEmotion = (key: EmotionKey) => {
     setEmotions((prev) => {
@@ -111,31 +79,22 @@ export default function SendScreen() {
   const toggleRecipient = (id: string) =>
     setRecipientIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
-  // "감정 선택을 마쳤다면 바깥을 터치" → 음악 넣을지 묻기
+  // "감정 선택을 마쳤다면 바깥을 터치" → 소리 넣을지 묻기
   const onPressOutside = () => {
     if (step === 'pick' && emotions.length > 0) setStep('ask');
-    if (step === 'prompt') Keyboard.dismiss();
   };
 
-  // 음악 넣기: 크레딧이 있으면 설명 입력, 없으면 충전 화면으로
-  const onAddMusic = () => {
-    if (credits > 0) return setStep('prompt');
-    confirm({
-      title: '음악 생성 기회가 없어요',
-      message: '충전하고 나만의 음악을 넣어볼까요?',
-      okText: '충전하기',
-      onOk: () => router.navigate('/payment'),
-    });
-  };
-
-  const onGenerate = () => {
-    Keyboard.dismiss();
-    if (!spendCredit()) return onAddMusic();
-    setStep('generating');
+  // 고른 소리를 구슬에 넣기 → 돌려서 들어보고 터치로 보내기
+  const onUseSound = () => {
+    if (!soundId) return;
+    music.stop();
+    setHasMusic(true);
+    setStep('ready');
   };
 
   const onlyOrb = () => {
-    Keyboard.dismiss();
+    music.stop();
+    setSoundId(null);
     setHasMusic(false);
     setStep('share');
   };
@@ -152,7 +111,7 @@ export default function SendScreen() {
       setSent(null);
       setRecipientIds([]);
       setRoute('friends');
-      setPrompt('');
+      setSoundId(null);
       setHasMusic(false);
       setEmotions([key]);
       setStep('pick');
@@ -170,14 +129,14 @@ export default function SendScreen() {
     setEmotions([]);
     setRecipientIds([]);
     setRoute('friends');
-    setPrompt('');
+    setSoundId(null);
     setHasMusic(false);
   };
 
   const onSend = () => {
     // TODO: 백엔드 연동 - 감정 전송 API
     // { emotions: ['yellow', 'blue'], route: 'friends' | 'me' | 'anonymous', recipientIds,
-    //   music: hasMusic ? { prompt, musicId } : null }
+    //   soundId: hasMusic ? soundId : null }
     const labels = emotions.map((k) => getEmotion(k).label).join(' · ');
     const done =
       route === 'me'
@@ -187,7 +146,7 @@ export default function SendScreen() {
           : `${recipientIds.length}곳에 감정을 보냈어요.`;
     music.stop();
     const at = Date.now();
-    setSent({ at, done, labels: `${labels}${hasMusic ? ' · 음악 포함' : ''}` });
+    setSent({ at, done, labels: `${labels}${hasMusic && sound ? ` · ${sound.title}` : ''}` });
     setNow(at);
     setStep('sent');
     // TODO: 시연용 가짜 반응 알림 (반응은 익명으로 보낸 구슬에만). 연동 시 삭제
@@ -217,12 +176,7 @@ export default function SendScreen() {
   const [first, second] = emotions;
   const firstEmotion = first ? getEmotion(first) : undefined;
 
-  const isMusicStep =
-    step === 'ask' ||
-    step === 'prompt' ||
-    step === 'generating' ||
-    step === 'ready' ||
-    step === 'sent';
+  const isMusicStep = step === 'ask' || step === 'sound' || step === 'ready' || step === 'sent';
   const words = emotions.flatMap((k) => getEmotion(k).words).slice(0, 3);
 
   const message =
@@ -246,9 +200,9 @@ export default function SendScreen() {
         <AppHeader title="감정 보내기" />
       </View>
 
-      <Animated.View
+      <View
         // 음악 단계는 아래 버튼까지 터치되도록 영역을 늘림 (안드로이드는 영역 밖 터치가 안 됨)
-        style={[styles.stage, isMusicStep && styles.stageTall, liftStyle]}
+        style={[styles.stage, isMusicStep && styles.stageTall]}
         pointerEvents="box-none"
       >
         {step === 'pick' && (
@@ -296,12 +250,12 @@ export default function SendScreen() {
           </MusicOrb>
         </View>
 
-        {/* ── 음악 넣기 단계 (피그마 '감정_보내기_음악_크레딧_소지') ── */}
+        {/* ── 소리 넣기 단계 (피그마 '감정_보내기_음악' 스타일, PRD 기준 제공 소리 고르기) ── */}
         {step === 'ask' && (
           <View style={styles.panel}>
-            <Text style={styles.message}>나만의 음악을 만들어 넣을 수 있어요.</Text>
+            <Text style={styles.message}>감정에 어울리는 소리를 넣을 수 있어요.</Text>
             <Pressable
-              onPress={onAddMusic}
+              onPress={() => setStep('sound')}
               style={({ pressed }) => [
                 styles.btn,
                 styles.btnAccent,
@@ -309,7 +263,7 @@ export default function SendScreen() {
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={styles.btnLabel}>음악 넣기</Text>
+              <Text style={styles.btnLabel}>소리 넣기</Text>
             </Pressable>
             <Pressable
               onPress={onlyOrb}
@@ -317,57 +271,52 @@ export default function SendScreen() {
             >
               <Text style={styles.btnLabel}>감정 구슬만 보내기</Text>
             </Pressable>
-            <Text style={styles.credit}>남은 음악 생성 {credits}회</Text>
           </View>
         )}
 
-        {step === 'prompt' && (
-          <View style={styles.panelPrompt}>
-            <TextInput
-              value={prompt}
-              onChangeText={setPrompt}
-              placeholder={
-                '음악으로 만들고 싶은 내 감정이나 상황, 전달을 위한 음악 인지,\n내가 듣기 위한 음악 인지 등을 작성해주세요.\n\nex) 예상치 못한 용돈을 받았어, 친구에게 이 감정을 전하고 싶어.'
-              }
-              placeholderTextColor="#8A8F98"
-              multiline
-              maxLength={PROMPT_MAX}
-              textAlignVertical="top"
-              style={styles.prompt}
-            />
-            {prompt.trim() ? (
-              <Pressable
-                onPress={onGenerate}
-                style={({ pressed }) => [
-                  styles.btn,
-                  styles.btnFull,
-                  styles.btnAccent,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={styles.btnLabel}>음악 생성하기</Text>
-              </Pressable>
-            ) : (
+        {step === 'sound' && (
+          <View style={styles.panel}>
+            <Text style={styles.message}>어떤 소리를 넣을까요?</Text>
+            <View style={styles.soundGrid}>
+              {mockSounds.map((x) => {
+                const on = x.id === soundId;
+                return (
+                  <Pressable
+                    key={x.id}
+                    onPress={() => setSoundId(x.id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    style={({ pressed }) => [
+                      styles.soundChip,
+                      on ? styles.soundChipOn : styles.btnDark,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.btnLabel}>{x.title}</Text>
+                    <Text style={styles.soundSec}>{x.seconds}초</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.sentButtons}>
               <Pressable
                 onPress={onlyOrb}
+                style={({ pressed }) => [styles.btnHalf, styles.btnDark, pressed && styles.pressed]}
+              >
+                <Text style={styles.btnLabel}>소리 없이 보내기</Text>
+              </Pressable>
+              <Pressable
+                onPress={onUseSound}
+                disabled={!soundId}
                 style={({ pressed }) => [
-                  styles.btn,
-                  styles.btnFull,
-                  styles.btnDark,
+                  styles.btnHalf,
+                  styles.btnAccent,
+                  !soundId && styles.disabled,
                   pressed && styles.pressed,
                 ]}
               >
-                <Text style={styles.btnLabel}>감정 구슬만 보내기</Text>
+                <Text style={styles.btnLabel}>이 소리 넣기</Text>
               </Pressable>
-            )}
-          </View>
-        )}
-
-        {step === 'generating' && (
-          <View style={styles.panel}>
-            <Text style={styles.message}>맞춤형 음악을 생성 중 입니다.</Text>
-            <View style={styles.track}>
-              <Animated.View style={[styles.bar, barStyle]} />
             </View>
           </View>
         )}
@@ -402,7 +351,7 @@ export default function SendScreen() {
               </Pressable>
             </View>
             {route !== 'me' && (
-              <Text style={styles.credit}>
+              <Text style={styles.note}>
                 {remaining > 0
                   ? `${mmss} 동안 보내기를 취소할 수 있어요`
                   : '취소 가능한 시간이 지났어요'}
@@ -415,13 +364,13 @@ export default function SendScreen() {
           <View style={styles.panel} pointerEvents="none">
             <Text style={styles.message}>{words.join(', ')}…</Text>
             <Image source={Icons.headphones} style={styles.headphones} contentFit="contain" />
-            <Text style={styles.message}>감정과 관련 된 음악을 생성했어요.</Text>
+            <Text style={styles.message}>{sound?.title} 소리를 넣었어요.</Text>
             <Text style={styles.hint}>
               {'시계 방향으로 구슬을 스와이프 해서\n노래 듣기 및 터치로 보내기'}
             </Text>
           </View>
         )}
-      </Animated.View>
+      </View>
 
       {(step === 'empty' || step === 'pick') && (
         <View style={styles.texts} pointerEvents="none">
@@ -455,7 +404,6 @@ const styles = StyleSheet.create({
   plus: { width: 83, height: 83 },
   // 음악 단계
   panel: { position: 'absolute', left: 0, right: 0, top: PANEL_TOP, alignItems: 'center' },
-  panelPrompt: { position: 'absolute', left: 34, right: 34, top: PANEL_TOP - 20 },
   btn: {
     alignSelf: 'stretch',
     marginHorizontal: 34,
@@ -476,32 +424,31 @@ const styles = StyleSheet.create({
       'inset -3px 3px 7px rgba(15,15,15,0.2), inset 3px -3px 7px rgba(15,15,15,0.2), inset -3px -3px 7px rgba(61,61,61,0.9), inset 3px 3px 8px rgba(15,15,15,0.9)',
   },
   pressed: { opacity: 0.8 },
-  btnLabel: { fontFamily: Fonts.medium, fontSize: 14, color: Colors.textActive },
-  credit: { marginTop: 12, fontFamily: Fonts.regular, fontSize: 11, color: Colors.textMuted },
-  prompt: {
-    height: Platform.OS === 'web' ? 160 : 125, // 웹은 글자가 커서 칸도 키움
-    marginBottom: 13,
+  disabled: { opacity: 0.4 },
+  // 소리 고르기: 2×2 칩
+  soundGrid: {
+    alignSelf: 'stretch',
+    marginTop: 18,
+    marginHorizontal: 34,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  soundChip: {
+    width: '48%',
+    flexGrow: 1,
+    height: 52,
     borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 14,
-    backgroundColor: '#2A2A2A',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#3A3A3A',
-    fontFamily: Fonts.regular,
-    fontSize: Platform.OS === 'web' ? 16 : 13, // 웹은 16 미만이면 아이폰에서 확대됨
-    lineHeight: 19,
-    color: Colors.textPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  track: {
-    marginTop: 22,
-    width: 187,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: '#4A5060',
-    overflow: 'hidden',
+  soundChipOn: {
+    backgroundColor: '#4F6A7A',
+    boxShadow: '0px 0px 16px rgba(110,160,190,0.35), 4px 4px 10px rgba(8,8,8,0.8)',
   },
-  bar: { height: '100%', borderRadius: 3, backgroundColor: Colors.white },
+  soundSec: { marginTop: 2, fontFamily: Fonts.regular, fontSize: 11, color: Colors.textMuted },
+  btnLabel: { fontFamily: Fonts.medium, fontSize: 14, color: Colors.textActive },
+  note: { marginTop: 12, fontFamily: Fonts.regular, fontSize: 11, color: Colors.textMuted },
   headphones: { marginTop: 14, marginBottom: 10, width: 22, height: 22 },
   sentButtons: {
     alignSelf: 'stretch',

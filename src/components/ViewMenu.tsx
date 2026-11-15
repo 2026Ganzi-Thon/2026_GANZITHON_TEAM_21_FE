@@ -12,7 +12,7 @@ type Props = {
   onClose: () => void;
 };
 
-// 헤더 제목 "그룹 ⌄" 을 누르면 나오는 목록 (내 감정 / 그룹들)
+// 헤더 제목 "전체 감정 ⌄" 을 누르면 나오는 목록 (내 감정 / 전체 감정)
 export default function ViewMenu({ visible, items, selectedIndex, onSelect, onClose }: Props) {
   const insets = useSafeAreaInsets();
 

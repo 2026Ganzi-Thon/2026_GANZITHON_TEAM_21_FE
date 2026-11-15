@@ -37,7 +37,7 @@ const ROUTE_INFO: Record<Exclude<SendRoute, 'friends'>, string[]> = {
 
 // 공유자 선택 하단 시트 (피그마 '감정_보내기3/4', '가까운_사람_O')
 // - 위쪽 드롭다운으로 전달 경로 선택: 가까운 사람 / 나에게 / 익명으로
-// - 가까운 사람: 친구(그룹 포함) 목록에서 여러 명 선택 (PRD v1.4 5-1, 거리 조건 없음)
+// - 가까운 사람: 친구 목록에서 여러 명 선택 (PRD v1.4 5-1, 거리 조건 없음)
 export default function RecipientSheet({
   visible,
   route,
