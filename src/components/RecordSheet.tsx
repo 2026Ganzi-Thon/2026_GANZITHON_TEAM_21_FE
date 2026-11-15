@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -23,12 +23,13 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
-import { getEmotion, orbImageStyle } from '@/constants/emotions';
+import { getEmotion, LIST_ORB_VISIBLE, orbImageStyle, orbSource } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
+import { confirm } from '@/utils/dialog';
 import type { RecordEntry, WeekRecord } from '@/types/emotion';
 
 const MAX_REACTIONS = 3; // 이보다 많으면 '+N'
-const ORB = 42;
+const ORB = LIST_ORB_VISIBLE; // 리스트 구슬 공통 (피그마 상세기록·소셜 = 40)
 
 // 끌어내려 닫기 감도
 const DISMISS_RATIO = 0.25; // 시트 높이의 25% 이상 내리면 닫힘
@@ -50,10 +51,23 @@ export default function RecordSheet({ week, mode = 'group', onClose, onPressEntr
   const { height: screenH } = useWindowDimensions();
   const visible = !!week;
 
+  // 내가 보낸 기록 삭제 (PRD 5-4: 내 기록에서만 지우고 받은 사람 기록은 유지)
+  const [deleted, setDeleted] = useState<string[]>([]);
+  const isMine = (entry: RecordEntry) => mode === 'mine' || entry.senderName === '나(본인)';
+  const askDelete = (entry: RecordEntry) =>
+    confirm({
+      title: '내 기록에서 삭제할까요?',
+      message: '받은 사람의 기록은 그대로 남아요.',
+      okText: '삭제',
+      destructive: true,
+      onOk: () => setDeleted((prev) => [...prev, entry.id]), // TODO: 발신 기록 삭제 API
+    });
+  const entries = week?.entries.filter((e) => !deleted.includes(e.id)) ?? [];
+
   const openReceived = (entry: RecordEntry) => {
     if (!entry.receivedId) return;
     onClose();
-    router.navigate({ pathname: '/reaction', params: { id: entry.receivedId, replay: '1' } });
+    router.navigate({ pathname: '/received', params: { id: entry.receivedId, replay: '1' } });
   };
 
   // 시트가 원래 자리에서 아래로 밀려난 거리 (0 = 다 열림)
@@ -128,11 +142,11 @@ export default function RecordSheet({ week, mode = 'group', onClose, onPressEntr
           </GestureDetector>
 
           <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-            {week?.entries.length === 0 && (
+            {entries.length === 0 && (
               <Text style={styles.empty}>이 주에는 아직 기록이 없어요.</Text>
             )}
-            {week?.entries.map((entry) => {
-              const [first, second] = entry.emotions;
+            {entries.map((entry) => {
+              const [first] = entry.emotions;
               const labels = entry.emotions.map((k) => getEmotion(k).label).join(' + ');
               const extra = entry.reactions.length - MAX_REACTIONS;
               // 받은 구슬은 눌러서 그때 수신 화면으로 재진입 (PRD 4-4)
@@ -142,26 +156,18 @@ export default function RecordSheet({ week, mode = 'group', onClose, onPressEntr
                   key={entry.id}
                   style={({ pressed }) => [styles.row, pressed && canOpen && styles.rowPressed]}
                   onPress={() => (onPressEntry ? onPressEntry(entry) : openReceived(entry))}
-                  disabled={!canOpen}
+                  onLongPress={isMine(entry) ? () => askDelete(entry) : undefined}
+                  disabled={!canOpen && !isMine(entry)}
                   accessibilityLabel={`${entry.senderName}, ${labels}`}
                 >
                   <View style={styles.colEmotion}>
                     <View style={styles.orbBox}>
+                      {/* 섞은 구슬은 디자인 혼합 이미지 (원본 감정 2개는 데이터에 그대로) */}
                       <Image
-                        source={getEmotion(first).image}
+                        source={orbSource(entry.emotions)}
                         style={orbImageStyle(first, ORB)}
                         contentFit="contain"
                       />
-                      {/* 섞은 구슬: 두 번째 감정을 반투명으로 겹침 (보내기 화면과 같은 방식) */}
-                      {second && (
-                        <View style={[StyleSheet.absoluteFill, styles.orbBox, styles.overlay]}>
-                          <Image
-                            source={getEmotion(second).image}
-                            style={orbImageStyle(second, ORB)}
-                            contentFit="contain"
-                          />
-                        </View>
-                      )}
                     </View>
                   </View>
                   <View style={styles.colSender}>
@@ -193,6 +199,9 @@ export default function RecordSheet({ week, mode = 'group', onClose, onPressEntr
                 </Pressable>
               );
             })}
+            {entries.some(isMine) && (
+              <Text style={styles.deleteHint}>내가 보낸 기록은 길게 눌러 삭제할 수 있어요.</Text>
+            )}
           </ScrollView>
         </Animated.View>
       </GestureHandlerRootView>
@@ -236,7 +245,7 @@ const styles = StyleSheet.create({
   colEmotion: { width: 56 },
   colSender: { flex: 1 },
   colReaction: { width: 90 },
-  list: { paddingTop: 12, paddingBottom: 60, gap: 22 },
+  list: { paddingTop: 10, paddingBottom: 60, gap: 21.7 }, // 줄 간격 85.7 (피그마)
   empty: {
     marginTop: 40,
     textAlign: 'center',
@@ -257,7 +266,13 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   orbBox: { width: ORB, height: ORB, alignItems: 'center', justifyContent: 'center' },
-  overlay: { opacity: 0.55 },
+  deleteHint: {
+    marginTop: 4,
+    textAlign: 'center',
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
   rowPressed: { opacity: 0.7 },
   labels: {
     marginTop: 2,

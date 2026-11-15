@@ -163,20 +163,24 @@ export default function AuthForm({ mode }: { mode: Mode }) {
             </View>
           )}
 
-          <Pressable
-            onPress={ready ? submit : close}
-            disabled={busy}
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.button,
-              ready && styles.buttonReady,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Text style={[styles.buttonLabel, ready && styles.buttonLabelReady]}>
-              {ready ? '앱으로 이동' : '닫기'}
-            </Text>
-          </Pressable>
+          {/* 처음 실행해서 들어온 경우엔 돌아갈 화면이 없으니 '닫기'를 숨김 (기획 답변) */}
+          {(ready || router.canGoBack()) && (
+            <Pressable
+              onPress={ready ? submit : close}
+              disabled={busy}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.button,
+                ready && styles.buttonReady,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.buttonLabel, ready && styles.buttonLabelReady]}>
+                {ready ? '앱으로 이동' : '닫기'}
+              </Text>
+            </Pressable>
+          )}
+          {!(ready || router.canGoBack()) && <View style={styles.buttonSpace} />}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -279,6 +283,7 @@ const styles = StyleSheet.create({
     boxShadow: '0px 0px 18px rgba(255,255,255,0.12), 4px 4px 10px rgba(8,8,8,0.8)',
   },
   pressed: { opacity: 0.8 },
+  buttonSpace: { height: 52 },
   buttonLabel: { fontFamily: Fonts.semiBold, fontSize: 16, color: Colors.textActive },
   buttonLabelReady: { color: '#1E1E1E' },
 });

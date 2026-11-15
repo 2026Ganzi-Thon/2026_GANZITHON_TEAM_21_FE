@@ -11,6 +11,8 @@ import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
 import { signOut } from '@/stores/authStore';
+import { setCareEnabled, useCare } from '@/stores/careStore';
+import { dateLabel, isResting, useRest } from '@/stores/restStore';
 import { notify, confirm } from '@/utils/dialog';
 
 type ToggleKey = 'anonymous' | 'push' | 'mindLens' | 'swipeMusic';
@@ -79,7 +81,20 @@ export default function SettingsScreen() {
     swipeMusic: true,
   });
 
-  const set = (key: ToggleKey, next: boolean) => setValues((prev) => ({ ...prev, [key]: next }));
+  const set = (key: ToggleKey, next: boolean) => {
+    if (key === 'mindLens') setCareEnabled(next); // 홈 케어 카드와 연결
+    setValues((prev) => ({ ...prev, [key]: next }));
+  };
+  const care = useCare();
+  const rest = useRest();
+  // 잠시 쉬기 줄 설명에 지금 상태 표시
+  const restDesc =
+    rest.mode === 'now'
+      ? '지금 쉬는 중'
+      : rest.mode === 'scheduled'
+        ? `${isResting(rest) ? '쉬는 중' : '예약됨'} · ${dateLabel(rest.from)} ~ ${dateLabel(rest.to)}`
+        : undefined;
+  const valueOf = (key: ToggleKey) => (key === 'mindLens' ? care.enabled : values[key]);
 
   const onToggle = (key: ToggleKey, next: boolean) => {
     // 익명 구슬은 성인만 (기능명세 TR-07) - 연동 시 성인 인증 여부로 막기
@@ -109,19 +124,24 @@ export default function SettingsScreen() {
                   {i > 0 && <View style={styles.divider} />}
                   <Pressable
                     disabled={row.kind === 'toggle'}
-                    onPress={() => notify(row.title, '준비 중이에요.')} // TODO: 상세 화면
+                    onPress={
+                      () =>
+                        row.title === '잠시 쉬기'
+                          ? router.navigate('/rest')
+                          : notify(row.title, '준비 중이에요.') // TODO: 상세 화면
+                    }
                     style={({ pressed }) => [styles.row, pressed && styles.pressed]}
                   >
                     <View style={styles.texts}>
                       <Text style={styles.rowTitle}>{row.title}</Text>
                       <Text style={styles.rowDesc} numberOfLines={1}>
-                        {row.desc}
+                        {row.title === '잠시 쉬기' && restDesc ? restDesc : row.desc}
                       </Text>
                     </View>
                     {row.kind === 'toggle' ? (
                       <View style={styles.toggle}>
                         <Toggle
-                          value={values[row.key]}
+                          value={valueOf(row.key)}
                           onChange={(next) => onToggle(row.key, next)}
                           accessibilityLabel={row.title}
                         />

@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { Images } from '@/constants/assets';
+import { ORB_FILL } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import { dismissNotification, useCurrentNotification } from '@/stores/notificationStore';
 
@@ -56,6 +57,7 @@ export default function NotificationBanner() {
   const style = useAnimatedStyle(() => ({ transform: [{ translateY: y.get() }] }));
 
   if (!n) return null;
+  const hasPreview = Boolean(n.orb || n.emoji);
 
   const open = () => {
     dismissNotification();
@@ -73,23 +75,27 @@ export default function NotificationBanner() {
                 <Text style={styles.app}>EmOri</Text>
                 <Text style={styles.time}>지금</Text>
               </View>
-              <Text style={styles.title} numberOfLines={1}>
+              <Text style={[styles.title, hasPreview && styles.besidePreview]} numberOfLines={1}>
                 {n.title}
               </Text>
-              <Text style={styles.body} numberOfLines={1}>
+              <Text style={[styles.body, hasPreview && styles.besidePreview]} numberOfLines={1}>
                 {n.body}
               </Text>
               {n.hint && (
-                <Text style={styles.hint} numberOfLines={1}>
+                <Text style={[styles.hint, hasPreview && styles.besidePreview]} numberOfLines={1}>
                   {n.hint}
                 </Text>
               )}
             </View>
-            {n.emoji && (
+            {n.orb ? (
+              <View style={styles.preview}>
+                <Image source={n.orb} style={styles.orb} contentFit="contain" />
+              </View>
+            ) : n.emoji ? (
               <View style={styles.preview}>
                 <Text style={styles.emoji}>{n.emoji}</Text>
               </View>
-            )}
+            ) : null}
           </BlurView>
         </Pressable>
       </Animated.View>
@@ -133,4 +139,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emoji: { fontSize: 32 },
+  besidePreview: { marginRight: 50 }, // 오른쪽 미리보기와 글자가 안 겹치게
+  // 구슬이 보이는 지름 42 (이미지 여백 감안해서 키움)
+  orb: { width: 42 / ORB_FILL, height: 42 / ORB_FILL },
 });

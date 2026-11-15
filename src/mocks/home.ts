@@ -1,5 +1,18 @@
 // 가짜 데이터 - 백엔드 연동 시 내 감정 / 내가 속한 그룹 목록 API로 교체
-import { Orbs } from '@/constants/assets';
+import { MineOrbs, Orbs } from '@/constants/assets';
+import { getEmotion } from '@/constants/emotions';
+import { mockMyDays } from '@/mocks/care';
+import type { EmotionKey } from '@/types/emotion';
+
+// 이번 주(최근 7일) 가장 많이 고른 감정. 빨강은 파스텔 구슬이 없어서 분홍으로 보여줌
+// TODO: 연동 시 내 주간 감정 통계 API
+const counts = new Map<EmotionKey, number>();
+mockMyDays
+  .slice(0, 7)
+  .flat()
+  .forEach((k) => counts.set(k, (counts.get(k) ?? 0) + 1));
+const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'blue';
+const mineKey = (top === 'red' ? 'pink' : top) as keyof typeof MineOrbs;
 
 export type HomeView = {
   key: string;
@@ -20,9 +33,9 @@ export const mockViews: HomeView[] = [
     key: 'mine',
     kind: 'mine',
     title: '내 감정',
-    orb: Orbs.mine,
+    orb: MineOrbs[mineKey],
     message: '이번주 내 감정 구슬이에요.',
-    ring: BLUE_RING,
+    ring: { ...BLUE_RING, glowColor: getEmotion(mineKey).glow },
   },
   {
     key: 'g1',

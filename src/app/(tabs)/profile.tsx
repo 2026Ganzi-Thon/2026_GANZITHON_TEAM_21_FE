@@ -15,7 +15,8 @@ import { getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import { mockMe } from '@/mocks/me';
 
-const ORB = 152;
+const ORB = 152; // 링 149
+const ORB_VISIBLE = 132; // 피그마 '프로필' 구슬 지름
 const QR_BOX = 283;
 
 // 햄버거 > 프로필 (피그마 '프로필')
@@ -56,7 +57,7 @@ export default function ProfileScreen() {
               ringColor="#2A2416"
               glowColor="#D8E35A"
               shadowColor="#2B2A0A"
-              imageStyle={orbImageStyle(emotion.key, ORB * 0.93)}
+              imageStyle={orbImageStyle(emotion.key, ORB_VISIBLE)}
             />
           </View>
 
