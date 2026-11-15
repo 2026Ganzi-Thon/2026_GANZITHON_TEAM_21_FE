@@ -24,10 +24,19 @@ type Props = {
   playing: boolean;
   onPlay: () => void;
   onStop: () => void;
+  onTap?: () => void; // 짧게 탭 → 상세 기록 팝업 (PRD 4-5 표)
   children: ReactNode;
 };
 
-export default function MusicOrb({ size, enabled, playing, onPlay, onStop, children }: Props) {
+export default function MusicOrb({
+  size,
+  enabled,
+  playing,
+  onPlay,
+  onStop,
+  onTap,
+  children,
+}: Props) {
   const rotation = useSharedValue(0);
   const prevAngle = useSharedValue(0);
   const turned = useSharedValue(0); // 이번 제스처에서 돌린 총 각도
@@ -77,13 +86,22 @@ export default function MusicOrb({ size, enabled, playing, onPlay, onStop, child
       scheduleOnRN(onGestureEnd, turned.value);
     });
 
+  // 짧게 탭: 돌리기(pan)랑 경쟁해서 먼저 인식된 쪽만 동작
+  const tap = Gesture.Tap()
+    .enabled(!!onTap)
+    .runOnJS(true)
+    .onEnd((_e, success) => {
+      if (success) onTap?.();
+    });
+  const gesture = Gesture.Race(pan, tap);
+
   const rotateStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.get()}deg` }],
   }));
 
   return (
     // 제스처는 회전하지 않는 바깥 View 에서 받음 (EmotionWheel 과 같은 이유)
-    <GestureDetector gesture={pan}>
+    <GestureDetector gesture={gesture}>
       <View style={{ width: size, height: size }} collapsable={false}>
         <Animated.View style={[StyleSheet.absoluteFill, rotateStyle]}>{children}</Animated.View>
       </View>

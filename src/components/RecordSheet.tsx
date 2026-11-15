@@ -38,7 +38,7 @@ const SPRING_BACK = { damping: 24, stiffness: 280, mass: 0.9 }; // 덜 내렸을
 
 type Props = {
   week: WeekRecord | null; // null 이면 닫힘
-  mode?: 'group' | 'mine'; // mine = 내가 보낸 감정 (두 번째 칸이 '내 감정 받은이')
+  mode?: 'all' | 'mine'; // mine = 내가 보낸 감정 (두 번째 칸이 '내 감정 받은이')
   onClose: () => void;
   onPressEntry?: (entry: RecordEntry) => void; // 과거 수신 기록 재진입 (기능명세 AR-04)
 };
@@ -46,7 +46,7 @@ type Props = {
 // 상세 기록 팝업 (피그마 '상세기록-그룹')
 // - 그 주에 모인 감정: 감정 구슬 / 보낸이(+음악 표시) / 받은 반응
 // - 팝업에서는 음악 재생 안 함 (기능명세 MU-10)
-export default function RecordSheet({ week, mode = 'group', onClose, onPressEntry }: Props) {
+export default function RecordSheet({ week, mode = 'all', onClose, onPressEntry }: Props) {
   const insets = useSafeAreaInsets();
   const { height: screenH } = useWindowDimensions();
   const visible = !!week;

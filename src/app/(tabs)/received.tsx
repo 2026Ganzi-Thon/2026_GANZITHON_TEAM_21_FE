@@ -8,6 +8,7 @@ import AppHeader from '@/components/AppHeader';
 import EmotionOrb from '@/components/EmotionOrb';
 import MusicOrb from '@/components/MusicOrb';
 import NeuButton from '@/components/NeuButton';
+import OrbDetailSheet from '@/components/OrbDetailSheet';
 import ReactionSheet from '@/components/ReactionSheet';
 import ReceiveGlow from '@/components/ReceiveGlow';
 import { Icons } from '@/constants/assets';
@@ -56,11 +57,13 @@ function ReceivedView({ received, isReplay }: { received: ReceivedEmotion; isRep
 
   const [answered, setAnswered] = useState(received.reacted || !canReact);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [myReaction, setMyReaction] = useState<string | null>(null);
   const music = useOrbMusic(received.music);
 
   const onSendReaction = (emoji: string) => {
     // TODO: 반응 전송 API (received.id, emoji)
-    console.log('[반응]', received.id, emoji);
+    setMyReaction(emoji);
     setAnswered(true);
   };
 
@@ -93,6 +96,7 @@ function ReceivedView({ received, isReplay }: { received: ReceivedEmotion; isRep
             playing={music.playing}
             onPlay={music.play}
             onStop={music.stop}
+            onTap={() => setDetailOpen(true)}
           >
             <EmotionOrb
               size={ORB_SIZE}
@@ -125,10 +129,14 @@ function ReceivedView({ received, isReplay }: { received: ReceivedEmotion; isRep
             <Text style={styles.musicSub}>
               {music.playing
                 ? '반대 방향으로 스와이프하면 멈춰요.'
-                : '시계 방향으로 구슬을 스와이프.'}
+                : '시계 방향으로 구슬을 스와이프 · 누르면 상세 기록'}
             </Text>
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.music}>
+            <Text style={styles.musicSub}>구슬을 누르면 상세 기록을 볼 수 있어요.</Text>
+          </View>
+        )}
 
         {canReact && (
           <Pressable onPress={report} hitSlop={10} style={styles.report} accessibilityRole="button">
@@ -145,6 +153,18 @@ function ReceivedView({ received, isReplay }: { received: ReceivedEmotion; isRep
           setSheetOpen(false);
           router.navigate('/');
         }}
+      />
+
+      {/* 구슬 짧게 탭 → 이 구슬의 상세 기록 (PRD 4-5) */}
+      <OrbDetailSheet
+        visible={detailOpen}
+        emotions={received.emotions}
+        senderName={received.senderName}
+        timeLabel={received.sentAtLabel}
+        hasMusic={hasMusic}
+        reaction={myReaction}
+        showReaction={isAnonymous}
+        onClose={() => setDetailOpen(false)}
       />
     </View>
   );

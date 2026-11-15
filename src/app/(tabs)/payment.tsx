@@ -19,6 +19,7 @@ const ORB_VISIBLE = 115;
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 
+// ⚠️ PRD v1.4에 결제·크레딧이 없어서 메뉴에서 숨김 (화면만 남겨둠, 11/15)
 // 햄버거 > 결제 = 음악 충전 (피그마 '결제')
 // - 음악 생성 기회를 횟수 단위로 충전 (자동 결제 없음)
 export default function PaymentScreen() {

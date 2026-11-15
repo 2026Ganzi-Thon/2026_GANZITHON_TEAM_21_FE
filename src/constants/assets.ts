@@ -104,6 +104,11 @@ export const Images = {
 // 임시 음악 (무보컬 12초). 실제 음원 받으면 교체
 export const Sounds = {
   calm01: require('@/assets/sounds/calm-01.wav'),
+  // 시연용 제공 사운드 (12초, 무보컬). 연동 시 서버 카탈로그(GET /catalog/sounds) 음원으로 교체
+  warm01: require('@/assets/sounds/warm-01.wav'),
+  clear01: require('@/assets/sounds/clear-01.wav'),
+  wave01: require('@/assets/sounds/wave-01.wav'),
+  spark01: require('@/assets/sounds/spark-01.wav'),
 };
 
 export const Avatars = {

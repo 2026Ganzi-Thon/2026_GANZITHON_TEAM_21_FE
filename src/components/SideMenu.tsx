@@ -17,7 +17,6 @@ type Props = {
 const ITEMS: { label: string; icon: ImageSource; href: Href }[] = [
   { label: '프로필', icon: Icons.user, href: '/profile' },
   { label: '소셜 목록', icon: Icons.userGroup, href: '/social' },
-  { label: '결제', icon: Icons.creditCard, href: '/payment' },
   { label: '설정', icon: Icons.settingsMenu, href: '/settings' },
 ];
 
