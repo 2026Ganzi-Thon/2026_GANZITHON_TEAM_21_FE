@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   content: {
     alignItems: 'center',
-    paddingTop: 42,
+    paddingTop: 56, // 링 중심 y = 317 (피그마)
     paddingBottom: TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_GAP + 40,
   },
   dots: { marginTop: 40, marginBottom: 58 },

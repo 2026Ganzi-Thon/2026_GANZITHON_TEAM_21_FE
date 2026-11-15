@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     color: '#808B9F',
   },
   list: { flex: 1, marginTop: 7, overflow: 'visible' },
-  listContent: { paddingTop: 8, paddingBottom: 24, gap: 21.7 },
+  listContent: { paddingTop: 10, paddingBottom: 24, gap: 21.7 },
   heart: { position: 'absolute', left: 316 },
   remove: { position: 'absolute', left: 354 },
   icon: { width: 33, height: 33 },

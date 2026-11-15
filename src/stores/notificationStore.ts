@@ -1,3 +1,4 @@
+import type { ImageSource } from 'expo-image';
 import type { Href } from 'expo-router';
 import { useSyncExternalStore } from 'react';
 
@@ -10,7 +11,10 @@ export type InAppNotification = {
   title: string; // 감정을 받았어요
   body: string; // 서현님이 감정을 보냈어요.
   hint?: string; // 앱을 열거나 위젯에서 반응해보세요.
-  emoji?: string; // 오른쪽 미리보기: 반응 이모지 (감정 구슬은 PRD 7장에 따라 보여주지 않음)
+  // 오른쪽 미리보기 (둘 중 하나)
+  // 앱 안 배너에서는 감정 구슬을 보여줌. 잠금화면 푸시(서버가 보냄)에는 구슬·색을 넣지 않음 (디자인 논의 11/15)
+  orb?: ImageSource | number; // require() 로 불러온 이미지 = number
+  emoji?: string; // 반응 이모지
   href?: Href; // 누르면 이동할 화면
 };
 

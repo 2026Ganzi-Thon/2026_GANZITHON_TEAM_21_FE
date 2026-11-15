@@ -21,7 +21,7 @@ import type { ReceivedEmotion } from '@/types/emotion';
 import { confirm, notify } from '@/utils/dialog';
 
 const ORB_SIZE = 306;
-const ORB_VISIBLE = 282;
+const ORB_VISIBLE = 258; // 큰 구슬 공통 (메인·보내기와 동일)
 
 // 단일 감정구슬 화면 (피그마 '친구에게_반응', PRD v1.4 4-3 / 4-4 / 4-7)
 // - 최초 수신: 글로우 + (익명으로 받았으면) 반응하기 / 조용히 듣기 / 신고

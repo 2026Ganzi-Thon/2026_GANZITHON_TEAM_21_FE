@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ganzithon-team21",
+    "name": "EmOri",
     "slug": "ganzithon-team21",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,7 +8,8 @@
     "scheme": "ganzithon21",
     "userInterfaceStyle": "dark",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "bundleIdentifier": "com.hisi414.emori",
+      "appleTeamId": "K26ZPG2762"
     },
     "android": {
       "adaptiveIcon": {
@@ -33,7 +34,8 @@
           "imageWidth": 76
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "typedRoutes": true,

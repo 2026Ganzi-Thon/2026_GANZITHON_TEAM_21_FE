@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
@@ -27,7 +27,7 @@ import MusicOrb from '@/components/MusicOrb';
 import RecipientSheet from '@/components/RecipientSheet';
 import { Icons, Sounds } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
-import { getEmotion, orbImageStyle } from '@/constants/emotions';
+import { EMOTIONS, getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import { useOrbMusic } from '@/hooks/useOrbMusic';
 import { notifyReacted } from '@/mocks/notifications';
@@ -36,13 +36,13 @@ import { spendCredit, useCredits } from '@/stores/creditStore';
 import type { EmotionKey, SendRoute } from '@/types/emotion';
 import { confirm, notify } from '@/utils/dialog';
 
-const ORB_SIZE = 300;
-const ORB_VISIBLE = 272; // 가운데 구슬이 화면에 보이는 지름 (피그마 기준)
+const ORB_SIZE = 306; // 링 지름 300 (메인과 같은 크기)
+const ORB_VISIBLE = 258; // 가운데 구슬이 화면에 보이는 지름 (큰 구슬 공통)
 const STAGE_HEIGHT = 470;
 const CENTER_Y = 224; // 헤더 아래 ~ 휠 중심 (피그마 기준)
-const ORB_CENTER_Y = 218; // 가운데 큰 구슬은 휠 중심보다 살짝 위
+const ORB_CENTER_Y = CENTER_Y; // 가운데 큰 구슬 = 휠 중심 (피그마)
 const MAX_EMOTIONS = 2;
-const PANEL_TOP = ORB_CENTER_Y + ORB_SIZE / 2 + 32; // 음악 단계 안내·버튼 시작 위치
+const PANEL_TOP = 400; // 음악 단계 안내·버튼 시작 위치 (탭바와 안 겹치게 고정)
 const GENERATE_MS = 4000; // 가짜 음악 생성 시간
 const PROMPT_MAX = 100;
 
@@ -139,6 +139,29 @@ export default function SendScreen() {
     setHasMusic(false);
     setStep('share');
   };
+
+  // 홈 화면 큰 위젯에서 구슬을 누르고 들어오면 (ganzithon21://send?emotion=blue)
+  // 그 색을 골라둔 휠 화면에서 시작 → 하나 더 고르면 섞기, 바깥 터치하면 다음 단계
+  // (effect 안에서 setState 하지 않고, 렌더 중에 '처음 보는 값'일 때만 상태를 맞춤)
+  const { emotion: preset } = useLocalSearchParams<{ emotion?: string }>();
+  const [appliedPreset, setAppliedPreset] = useState<string>();
+  if (preset !== appliedPreset) {
+    setAppliedPreset(preset);
+    const key = EMOTIONS.find((e) => e.key === preset)?.key;
+    if (key) {
+      setSent(null);
+      setRecipientIds([]);
+      setRoute('friends');
+      setPrompt('');
+      setHasMusic(false);
+      setEmotions([key]);
+      setStep('pick');
+    }
+  }
+  // 적용한 뒤 주소에서 지워서, 같은 색 구슬을 다시 눌러도 또 적용되게
+  useEffect(() => {
+    if (preset) router.setParams({ emotion: undefined });
+  }, [preset]);
 
   const reset = () => {
     music.stop();

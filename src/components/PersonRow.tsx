@@ -3,11 +3,11 @@ import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Colors, NeuCard } from '@/constants/colors';
-import { getEmotion, orbImageStyle } from '@/constants/emotions';
+import { getEmotion, LIST_ORB_VISIBLE, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import type { EmotionKey } from '@/types/emotion';
 
-const ORB = 44;
+const ORB = LIST_ORB_VISIBLE; // 리스트 구슬 공통 (피그마 상세기록·소셜 = 40)
 
 type Props = {
   name: string;
@@ -26,7 +26,7 @@ export default function PersonRow({
   emotion,
   children,
   bleed = 20,
-  orbCenterX = 63,
+  orbCenterX = 64.5,
   nameX = 105,
 }: Props) {
   const e = getEmotion(emotion);

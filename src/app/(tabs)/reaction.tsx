@@ -7,14 +7,14 @@ import AppHeader from '@/components/AppHeader';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import { Icons } from '@/constants/assets';
 import { Colors, NeuCard } from '@/constants/colors';
-import { getEmotion, orbImageStyle } from '@/constants/emotions';
+import { getEmotion, LIST_ORB_VISIBLE, orbImageStyle, orbSource } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import { mockInbox } from '@/mocks/receive';
 import { useOpenedIds } from '@/stores/inboxStore';
 import { isResting, useRest } from '@/stores/restStore';
 import type { ReceivedEmotion } from '@/types/emotion';
 
-const ORB = 46;
+const ORB = LIST_ORB_VISIBLE; // 리스트 구슬 공통 (피그마 상세기록·소셜 = 40)
 
 // 반응 탭 = 감정구슬 수신함 (PRD 필수 9번)
 // - 새 구슬(아직 안 열어봄) / 지난 구슬로 나눠서 보여줌
@@ -58,7 +58,7 @@ export default function InboxScreen() {
 }
 
 function Row({ item, isNew = false }: { item: ReceivedEmotion; isNew?: boolean }) {
-  const [first, second] = item.emotions;
+  const [first] = item.emotions;
   const labels = item.emotions.map((k) => getEmotion(k).label).join(' + ');
   return (
     <Pressable
@@ -68,20 +68,12 @@ function Row({ item, isNew = false }: { item: ReceivedEmotion; isNew?: boolean }
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
       <View style={styles.orb}>
+        {/* 섞은 구슬은 디자인 혼합 이미지 */}
         <Image
-          source={getEmotion(first).image}
+          source={orbSource(item.emotions)}
           style={orbImageStyle(first, ORB)}
           contentFit="contain"
         />
-        {second && (
-          <View style={[StyleSheet.absoluteFill, styles.orb, styles.overlay]}>
-            <Image
-              source={getEmotion(second).image}
-              style={orbImageStyle(second, ORB)}
-              contentFit="contain"
-            />
-          </View>
-        )}
       </View>
 
       <View style={styles.texts}>
@@ -141,7 +133,6 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.75 },
   orb: { width: ORB, height: ORB, alignItems: 'center', justifyContent: 'center' },
-  overlay: { opacity: 0.55 },
   texts: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { flexShrink: 1, fontFamily: Fonts.regular, fontSize: 16, color: Colors.white },

@@ -23,13 +23,13 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
-import { getEmotion, orbImageStyle } from '@/constants/emotions';
+import { getEmotion, LIST_ORB_VISIBLE, orbImageStyle, orbSource } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import { confirm } from '@/utils/dialog';
 import type { RecordEntry, WeekRecord } from '@/types/emotion';
 
 const MAX_REACTIONS = 3; // 이보다 많으면 '+N'
-const ORB = 42;
+const ORB = LIST_ORB_VISIBLE; // 리스트 구슬 공통 (피그마 상세기록·소셜 = 40)
 
 // 끌어내려 닫기 감도
 const DISMISS_RATIO = 0.25; // 시트 높이의 25% 이상 내리면 닫힘
@@ -146,7 +146,7 @@ export default function RecordSheet({ week, mode = 'group', onClose, onPressEntr
               <Text style={styles.empty}>이 주에는 아직 기록이 없어요.</Text>
             )}
             {entries.map((entry) => {
-              const [first, second] = entry.emotions;
+              const [first] = entry.emotions;
               const labels = entry.emotions.map((k) => getEmotion(k).label).join(' + ');
               const extra = entry.reactions.length - MAX_REACTIONS;
               // 받은 구슬은 눌러서 그때 수신 화면으로 재진입 (PRD 4-4)
@@ -162,21 +162,12 @@ export default function RecordSheet({ week, mode = 'group', onClose, onPressEntr
                 >
                   <View style={styles.colEmotion}>
                     <View style={styles.orbBox}>
+                      {/* 섞은 구슬은 디자인 혼합 이미지 (원본 감정 2개는 데이터에 그대로) */}
                       <Image
-                        source={getEmotion(first).image}
+                        source={orbSource(entry.emotions)}
                         style={orbImageStyle(first, ORB)}
                         contentFit="contain"
                       />
-                      {/* 섞은 구슬: 두 번째 감정을 반투명으로 겹침 (보내기 화면과 같은 방식) */}
-                      {second && (
-                        <View style={[StyleSheet.absoluteFill, styles.orbBox, styles.overlay]}>
-                          <Image
-                            source={getEmotion(second).image}
-                            style={orbImageStyle(second, ORB)}
-                            contentFit="contain"
-                          />
-                        </View>
-                      )}
                     </View>
                   </View>
                   <View style={styles.colSender}>
@@ -254,7 +245,7 @@ const styles = StyleSheet.create({
   colEmotion: { width: 56 },
   colSender: { flex: 1 },
   colReaction: { width: 90 },
-  list: { paddingTop: 12, paddingBottom: 60, gap: 22 },
+  list: { paddingTop: 10, paddingBottom: 60, gap: 21.7 }, // 줄 간격 85.7 (피그마)
   empty: {
     marginTop: 40,
     textAlign: 'center',
@@ -275,7 +266,6 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   orbBox: { width: ORB, height: ORB, alignItems: 'center', justifyContent: 'center' },
-  overlay: { opacity: 0.55 },
   deleteHint: {
     marginTop: 4,
     textAlign: 'center',

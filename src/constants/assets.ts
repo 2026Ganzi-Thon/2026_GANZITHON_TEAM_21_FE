@@ -1,7 +1,6 @@
 // 이미지·아이콘 모음 (파일은 scripts/fetch-figma-assets.sh 로 받음)
 export const Orbs = {
   group: require('@/assets/images/orbs/orb-group.png'),
-  mine: require('@/assets/images/orbs/orb-mine.png'),
   mono: require('@/assets/images/orbs/orb-mono.png'),
   monoDim: require('@/assets/images/orbs/orb-mono-dim.png'),
   yellow: require('@/assets/images/orbs/orb-yellow.png'),
@@ -11,6 +10,43 @@ export const Orbs = {
   purple: require('@/assets/images/orbs/orb-purple.png'),
   blue: require('@/assets/images/orbs/orb-blue.png'),
   green: require('@/assets/images/orbs/orb-green.png'),
+};
+
+// 디자인 최종 에셋 (2026-11-14). 모든 구슬 이미지는 '구슬 지름 = 이미지의 85%, 정가운데'로 맞춰 둠
+
+// 내 감정 메인 구슬: 이번 주에 가장 많이 고른 감정 색 (디자인 파스텔 6종, 빨강은 없어서 분홍으로 대체)
+export const MineOrbs = {
+  green: require('@/assets/images/orbs/mine/green.png'),
+  yellow: require('@/assets/images/orbs/mine/yellow.png'),
+  orange: require('@/assets/images/orbs/mine/orange.png'),
+  pink: require('@/assets/images/orbs/mine/pink.png'),
+  purple: require('@/assets/images/orbs/mine/purple.png'),
+  blue: require('@/assets/images/orbs/mine/blue.png'),
+};
+
+// 두 감정을 섞은 구슬 21종 (키: 알파벳순 'a-b'). 해상도가 작아서(약 270px) 작은 화면에만 사용
+export const MixOrbs: Record<string, number> = {
+  'blue-green': require('@/assets/images/orbs/mix/blue-green.png'),
+  'blue-orange': require('@/assets/images/orbs/mix/blue-orange.png'),
+  'blue-pink': require('@/assets/images/orbs/mix/blue-pink.png'),
+  'blue-purple': require('@/assets/images/orbs/mix/blue-purple.png'),
+  'blue-red': require('@/assets/images/orbs/mix/blue-red.png'),
+  'blue-yellow': require('@/assets/images/orbs/mix/blue-yellow.png'),
+  'green-orange': require('@/assets/images/orbs/mix/green-orange.png'),
+  'green-pink': require('@/assets/images/orbs/mix/green-pink.png'),
+  'green-purple': require('@/assets/images/orbs/mix/green-purple.png'),
+  'green-red': require('@/assets/images/orbs/mix/green-red.png'),
+  'green-yellow': require('@/assets/images/orbs/mix/green-yellow.png'),
+  'orange-pink': require('@/assets/images/orbs/mix/orange-pink.png'),
+  'orange-purple': require('@/assets/images/orbs/mix/orange-purple.png'),
+  'orange-red': require('@/assets/images/orbs/mix/orange-red.png'),
+  'orange-yellow': require('@/assets/images/orbs/mix/orange-yellow.png'),
+  'pink-purple': require('@/assets/images/orbs/mix/pink-purple.png'),
+  'pink-red': require('@/assets/images/orbs/mix/pink-red.png'),
+  'pink-yellow': require('@/assets/images/orbs/mix/pink-yellow.png'),
+  'purple-red': require('@/assets/images/orbs/mix/purple-red.png'),
+  'purple-yellow': require('@/assets/images/orbs/mix/purple-yellow.png'),
+  'red-yellow': require('@/assets/images/orbs/mix/red-yellow.png'),
 };
 
 export const Icons = {
