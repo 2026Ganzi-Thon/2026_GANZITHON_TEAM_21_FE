@@ -6,10 +6,17 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { setOnSessionExpired } from '@/api/client';
 import Cover from '@/components/Cover';
 import NotificationBanner from '@/components/NotificationBanner';
 import { Colors } from '@/constants/colors';
 import { FontAssets } from '@/constants/typography';
+import { signOut } from '@/stores/authStore';
+
+// 토큰이 만료되고 갱신도 실패하면 로그인 화면으로 (명세 §1)
+setOnSessionExpired(() => {
+  void signOut();
+});
 
 SplashScreen.preventAutoHideAsync();
 

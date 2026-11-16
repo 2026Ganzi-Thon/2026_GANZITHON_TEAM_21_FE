@@ -1,18 +1,20 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { toApiError } from '@/api/client';
+import { auth, settings as settingsApi } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import Toggle from '@/components/Toggle';
 import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
-import { signOut } from '@/stores/authStore';
+import { useApi } from '@/hooks/useApi';
 import { setCareEnabled, useCare } from '@/stores/careStore';
-import { dateLabel, isResting, useRest } from '@/stores/restStore';
+import { dateLabel, hydrateRest, isResting, useRest } from '@/stores/restStore';
 import { notify, confirm } from '@/utils/dialog';
 
 type ToggleKey = 'anonymous' | 'push' | 'mindLens' | 'swipeMusic';
@@ -73,17 +75,34 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
 
 // 햄버거 > 설정 / 헤더 ⚙︎ (피그마 '설정')
 export default function SettingsScreen() {
-  // TODO: 설정 조회/저장 API
-  const [values, setValues] = useState<Record<ToggleKey, boolean>>({
-    anonymous: false,
-    push: true,
+  // 서버 설정 (GET /me/settings): 익명 받기·알림·휴식. 목업이면 null
+  const server = useApi(() => settingsApi.get(), []);
+  useEffect(() => {
+    if (server.data) hydrateRest(server.data.rest);
+  }, [server.data]);
+
+  const [values, setValues] = useState<Partial<Record<ToggleKey, boolean>>>({});
+  const defaults: Record<ToggleKey, boolean> = {
+    anonymous: server.data?.anonymousEnabled ?? false, // PRD 5-2: 익명은 기본 꺼짐
+    push: server.data?.pushEnabled ?? true,
     mindLens: true,
     swipeMusic: true,
-  });
+  };
 
   const set = (key: ToggleKey, next: boolean) => {
     if (key === 'mindLens') setCareEnabled(next); // 홈 케어 카드와 연결
     setValues((prev) => ({ ...prev, [key]: next }));
+    if (key !== 'anonymous' && key !== 'push') return;
+    // 서버 저장 (PATCH /me/settings). 실패하면 되돌림
+    const body = key === 'anonymous' ? { anonymousEnabled: next } : { pushEnabled: next };
+    settingsApi.patch(body).catch((e) => {
+      setValues((prev) => ({ ...prev, [key]: !next }));
+      const err = toApiError(e);
+      notify(
+        err.code === 'AGE_REQUIRED' ? '만 19세 이상 인증이 필요해요.' : '설정을 저장하지 못했어요.',
+        err.code === 'AGE_REQUIRED' ? undefined : err.message,
+      );
+    });
   };
   const care = useCare();
   const rest = useRest();
@@ -94,7 +113,8 @@ export default function SettingsScreen() {
       : rest.mode === 'scheduled'
         ? `${isResting(rest) ? '쉬는 중' : '예약됨'} · ${dateLabel(rest.from)} ~ ${dateLabel(rest.to)}`
         : undefined;
-  const valueOf = (key: ToggleKey) => (key === 'mindLens' ? care.enabled : values[key]);
+  const valueOf = (key: ToggleKey) =>
+    key === 'mindLens' ? care.enabled : (values[key] ?? defaults[key]);
 
   const onToggle = (key: ToggleKey, next: boolean) => {
     // 익명 구슬은 성인만 (기능명세 TR-07) - 연동 시 성인 인증 여부로 막기
@@ -167,7 +187,7 @@ export default function SettingsScreen() {
               okText: '로그아웃',
               destructive: true,
               onOk: async () => {
-                await signOut();
+                await auth.logout();
                 router.replace('/login');
               },
             })

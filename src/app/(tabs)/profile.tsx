@@ -5,6 +5,8 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { toApiError } from '@/api/client';
+import { friendLink, me as meApi, records } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
 import EmotionOrb from '@/components/EmotionOrb';
 import QRCode from '@/components/QRCode';
@@ -13,7 +15,9 @@ import { Icons } from '@/constants/assets';
 import { Colors, NeuCard } from '@/constants/colors';
 import { getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
+import { useApi } from '@/hooks/useApi';
 import { mockMe } from '@/mocks/me';
+import { notify } from '@/utils/dialog';
 
 const ORB = 152; // 링 149
 const ORB_VISIBLE = 132; // 피그마 '프로필' 구슬 지름
@@ -22,10 +26,16 @@ const QR_BOX = 283;
 // 햄버거 > 프로필 (피그마 '프로필')
 // - 내 구슬 / 이름(✎ 수정) / ID(복사) / 친구추가용 QR
 export default function ProfileScreen() {
-  const [name, setName] = useState(mockMe.name);
+  // 내 정보 (GET /me): 이름 + 친구 코드(= 프로필 ID, QR)
+  const profile = useApi(() => meApi.get(), []);
+  const friendCode = profile.data?.friendCode ?? '';
+  const [nameDraft, setName] = useState<string>();
+  const name = nameDraft ?? profile.data?.name ?? '';
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const emotion = getEmotion(mockMe.emotion);
+  // 프로필 구슬 = 이번 주 내 대표 감정 (기록 없으면 목업 색)
+  const mine = useApi(() => records('mine'), []);
+  const emotion = getEmotion(mine.data?.topThisWeek ?? mockMe.emotion);
 
   useEffect(() => {
     if (!copied) return;
@@ -35,11 +45,15 @@ export default function ProfileScreen() {
 
   const saveName = () => {
     setEditing(false);
-    // TODO: 이름 수정 API
+    if (!name.trim() || name === profile.data?.name) return;
+    meApi.rename(name.trim()).catch((e) => {
+      setName(undefined); // 실패하면 서버 이름으로 되돌림
+      notify('이름을 바꾸지 못했어요', toApiError(e).message);
+    });
   };
 
   const copyId = async () => {
-    await Clipboard.setStringAsync(mockMe.id);
+    await Clipboard.setStringAsync(friendCode);
     setCopied(true);
   };
 
@@ -93,12 +107,12 @@ export default function ProfileScreen() {
             accessibilityLabel="아이디 복사"
             style={({ pressed }) => [styles.card, styles.idCard, pressed && styles.pressed]}
           >
-            <Text style={styles.idText}>ID: {mockMe.id}</Text>
+            <Text style={styles.idText}>ID: {friendCode}</Text>
             <Image source={Icons.copy} style={styles.copyIcon} contentFit="contain" />
           </Pressable>
 
           <View style={[styles.card, styles.qrCard]}>
-            <QRCode value={mockMe.friendLink} size={QR_BOX - 26} />
+            <QRCode value={friendLink(friendCode)} size={QR_BOX - 26} />
             {copied && (
               <Animated.View
                 entering={FadeIn.duration(150)}
@@ -129,7 +143,8 @@ const styles = StyleSheet.create({
   nameCard: {
     left: 230,
     top: 24,
-    width: 100,
+    minWidth: 100, // 피그마 100 (이름 2글자). 아이디가 길면 오른쪽 끝까지 늘어남
+    maxWidth: 393 - 230 - 12,
     height: 53,
     borderRadius: 16,
     flexDirection: 'row',
@@ -137,14 +152,15 @@ const styles = StyleSheet.create({
     paddingLeft: 11,
   },
   name: {
-    width: 52,
+    minWidth: 52,
+    maxWidth: 393 - 230 - 12 - 11 - 48, // 카드 최대 - 왼쪽 여백 - ✎ 자리
     fontFamily: Fonts.regular,
     fontSize: 30,
     lineHeight: 36,
     color: Colors.white,
   },
   nameInput: { padding: 0 },
-  editButton: { position: 'absolute', left: 63, top: 12 },
+  editButton: { marginRight: 11 }, // 이름 바로 오른쪽 (피그마: 이름 52 + ✎ 26 → 카드 100)
   editIcon: { width: 26, height: 28 },
   idCard: {
     left: 225,

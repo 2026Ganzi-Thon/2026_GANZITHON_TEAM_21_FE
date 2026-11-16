@@ -3,12 +3,13 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
+import type { AudioSource } from '@/types/emotion';
 import { notify } from '@/utils/dialog';
 
 // 감정구슬 음악 재생 (기능명세 MU-03 ~ MU-08)
 // - 자동 재생 X, play() 를 불러야만 재생
 // - 화면을 떠나거나 앱이 백그라운드로 가면 정지
-export function useOrbMusic(source?: number) {
+export function useOrbMusic(source?: AudioSource) {
   const player = useAudioPlayer(source ?? null);
   const [playing, setPlaying] = useState(false);
 

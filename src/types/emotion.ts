@@ -1,3 +1,6 @@
+// 소리: require() 로 불러온 파일(number) 또는 서버 재생 주소
+export type AudioSource = number | { uri: string };
+
 export type EmotionKey = 'yellow' | 'orange' | 'red' | 'pink' | 'purple' | 'blue' | 'green';
 
 export type Recipient = {
@@ -17,7 +20,7 @@ export type ReceivedEmotion = {
   senderName: string; // 익명이면 '익명'
   sentAtLabel: string; // '방금', '어제 21:10' 등 - 서버 시간으로 계산해서 넣기
   emotions: EmotionKey[]; // 1개 또는 섞은 2개 (PRD 3-3: 원본 감정 각각 보존)
-  music?: number; // 첨부 음악 (require() 오디오). 없으면 음악 기능 비활성화
+  music?: AudioSource; // 첨부 소리 (앱 안 파일 또는 서버 주소). 없으면 음악 기능 비활성화
   reacted: boolean; // 이미 반응했거나 조용히 듣기를 골랐는지
   opened: boolean; // 한 번이라도 열어봤는지 (안 열었으면 수신함에 '새 구슬'로 표시)
 };

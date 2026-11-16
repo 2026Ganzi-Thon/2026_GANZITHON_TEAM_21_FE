@@ -4,19 +4,20 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { toApiError } from '@/api/client';
+import { cancelDispatch, catalog, friends as friendsApi, sendOrb } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
 import EmotionOrb from '@/components/EmotionOrb';
 import EmotionWheel, { WHEEL_SIZE } from '@/components/EmotionWheel';
 import MusicOrb from '@/components/MusicOrb';
 import RecipientSheet from '@/components/RecipientSheet';
-import { Icons } from '@/constants/assets';
+import { Avatars, Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { EMOTIONS, getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
+import { useApi } from '@/hooks/useApi';
 import { useOrbMusic } from '@/hooks/useOrbMusic';
 import { notifyReacted } from '@/mocks/notifications';
-import { mockRecipients } from '@/mocks/send';
-import { mockSounds } from '@/mocks/sounds';
 import type { EmotionKey, SendRoute } from '@/types/emotion';
 import { confirm, notify } from '@/utils/dialog';
 
@@ -27,6 +28,7 @@ const CENTER_Y = 224; // 헤더 아래 ~ 휠 중심 (피그마 기준)
 const ORB_CENTER_Y = CENTER_Y; // 가운데 큰 구슬 = 휠 중심 (피그마)
 const MAX_EMOTIONS = 2;
 const PANEL_TOP = 400; // 소리 단계 안내·버튼 시작 위치 (탭바와 안 겹치게 고정)
+const SOUND_PANEL_TOP = 300; // 소리 고르기 패널 (구슬을 줄여서 위로)
 
 // 단계
 // empty(+) → pick(휠) → ask(소리 넣을지) → sound(제공 소리 고르기) → ready(소리 구슬) → share
@@ -45,7 +47,13 @@ export default function SendScreen() {
   const [route, setRoute] = useState<SendRoute>('friends');
   const [soundId, setSoundId] = useState<string | null>(null);
   const [hasMusic, setHasMusic] = useState(false);
-  const [sent, setSent] = useState<{ at: number; done: string; labels: string } | null>(null);
+  const [sent, setSent] = useState<{
+    until: number; // 이 시각까지 취소 가능 (서버 cancelUntil)
+    dispatchId: string | null;
+    done: string;
+    labels: string;
+  } | null>(null);
+  const [sending, setSending] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const demoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -55,9 +63,13 @@ export default function SendScreen() {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [step]);
-  const remaining = sent ? Math.max(0, sent.at + CANCEL_MS - now) : 0;
+  const remaining = sent ? Math.max(0, sent.until - now) : 0;
   const mmss = `${Math.floor(remaining / 60000)}:${String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0')}`;
-  const sound = mockSounds.find((x) => x.id === soundId); // TODO: GET /catalog/sounds
+  // 제공 소리 목록 (GET /catalog/sounds) / 받을 친구 목록 (GET /friends)
+  const soundList = useApi(() => catalog.sounds(), []).data ?? [];
+  const friendList = useApi(() => friendsApi.list(), []).data ?? [];
+  const recipients = friendList.map((f) => ({ id: f.id, name: f.name, avatar: Avatars.a1 }));
+  const sound = soundList.find((x) => x.id === soundId);
   const music = useOrbMusic(sound?.source);
 
   // 소리를 고르면 바로 한 번 들려줌 (고르는 단계에서만. 자동 재생 금지는 받는 사람 화면 기준)
@@ -133,24 +145,53 @@ export default function SendScreen() {
     setHasMusic(false);
   };
 
-  const onSend = () => {
-    // TODO: 백엔드 연동 - 감정 전송 API
-    // { emotions: ['yellow', 'blue'], route: 'friends' | 'me' | 'anonymous', recipientIds,
-    //   soundId: hasMusic ? soundId : null }
-    const labels = emotions.map((k) => getEmotion(k).label).join(' · ');
-    const done =
-      route === 'me'
-        ? '나에게 감정을 보관했어요.'
-        : route === 'anonymous'
-          ? '익명으로 감정을 보냈어요.'
-          : `${recipientIds.length}곳에 감정을 보냈어요.`;
-    music.stop();
-    const at = Date.now();
-    setSent({ at, done, labels: `${labels}${hasMusic && sound ? ` · ${sound.title}` : ''}` });
-    setNow(at);
-    setStep('sent');
-    // TODO: 시연용 가짜 반응 알림 (반응은 익명으로 보낸 구슬에만). 연동 시 삭제
-    if (route === 'anonymous') demoTimer.current = setTimeout(notifyReacted, 6000);
+  const onSend = async () => {
+    if (sending) return;
+    if (route === 'friends' && recipientIds.length === 0) return;
+    setSending(true);
+    try {
+      // POST /orbs (색 1~2개 + 소리) → POST /orbs/{id}/dispatches (나에게 / 친구 / 익명)
+      const result = await sendOrb({
+        emotions,
+        soundId: hasMusic ? soundId : null,
+        route,
+        friendIds: route === 'friends' ? recipientIds : [],
+      });
+      const labels = emotions.map((k) => getEmotion(k).label).join(' · ');
+      const done =
+        route === 'me'
+          ? '나에게 감정을 보관했어요.'
+          : route === 'anonymous'
+            ? '익명으로 감정을 보냈어요.'
+            : `${recipientIds.length}명에게 감정을 보냈어요.`;
+      music.stop();
+      const at = Date.now();
+      setSent({
+        until: result.cancelUntil ?? at + CANCEL_MS,
+        dispatchId: result.dispatchId,
+        done,
+        labels: `${labels}${hasMusic && sound ? ` · ${sound.title}` : ''}`,
+      });
+      setNow(at);
+      setStep('sent');
+      // TODO: 시연용 가짜 반응 알림 (목업일 때만). 실제로는 서버 푸시
+      if (route === 'anonymous' && result.dispatchId === 'mock') {
+        demoTimer.current = setTimeout(notifyReacted, 6000);
+      }
+    } catch (e) {
+      const err = toApiError(e);
+      // 명세 §6: NO_MATCH(익명 받을 사람 없음), ANON_SEND_LIMIT(하루 5번), FRIENDSHIP_CHANGED 등
+      const msg: Record<string, string> = {
+        NO_MATCH: '지금은 익명 구슬을 받을 수 있는 사람이 없어요. 잠시 후 다시 보내주세요.',
+        ANON_SEND_LIMIT: '오늘은 익명 구슬을 더 보낼 수 없어요. (하루 5번)',
+        FRIENDSHIP_CHANGED: '친구 관계가 바뀌었어요. 받는 사람을 다시 골라주세요.',
+        AGE_REQUIRED: '익명 보내기는 만 19세 이상만 쓸 수 있어요.',
+        ANONYMOUS_DISABLED: '설정에서 익명 구슬을 켜야 보낼 수 있어요.',
+      };
+      notify('보내지 못했어요', msg[err.code] ?? err.message);
+    } finally {
+      setSending(false);
+    }
   };
 
   // 보내기 취소: 5분 이내 + 상대가 아직 안 열었을 때만 (열었는지는 서버가 판단)
@@ -160,11 +201,21 @@ export default function SendScreen() {
       message: '상대방이 아직 확인하지 않았다면 보낸 감정구슬이 사라져요.',
       okText: '보내기 취소',
       destructive: true,
-      onOk: () => {
-        // TODO: 전송 취소 API → 이미 열람했으면 실패 응답 → '이미 확인한 구슬이에요' 안내
-        if (demoTimer.current) clearTimeout(demoTimer.current);
-        reset();
-        notify('보내기를 취소했어요.');
+      onOk: async () => {
+        try {
+          await cancelDispatch(sent?.dispatchId ?? null); // POST /dispatches/{id}/cancel
+          if (demoTimer.current) clearTimeout(demoTimer.current);
+          reset();
+          notify('보내기를 취소했어요.');
+        } catch (e) {
+          const err = toApiError(e);
+          notify(
+            '취소할 수 없어요',
+            err.code === 'CANCEL_NOT_ALLOWED'
+              ? '이미 열람했거나 취소할 수 있는 시간이 지났어요.'
+              : err.message,
+          );
+        }
       },
     });
 
@@ -217,7 +268,11 @@ export default function SendScreen() {
         )}
 
         <View
-          style={[styles.orb, { left: width / 2 - ORB_SIZE / 2, top: ORB_CENTER_Y - ORB_SIZE / 2 }]}
+          style={[
+            styles.orb,
+            { left: width / 2 - ORB_SIZE / 2, top: ORB_CENTER_Y - ORB_SIZE / 2 },
+            step === 'sound' && styles.orbSmall,
+          ]}
         >
           <MusicOrb
             size={ORB_SIZE}
@@ -275,10 +330,10 @@ export default function SendScreen() {
         )}
 
         {step === 'sound' && (
-          <View style={styles.panel}>
+          <View style={[styles.panel, styles.panelSound]}>
             <Text style={styles.message}>어떤 소리를 넣을까요?</Text>
             <View style={styles.soundGrid}>
-              {mockSounds.map((x) => {
+              {soundList.map((x) => {
                 const on = x.id === soundId;
                 return (
                   <Pressable
@@ -383,7 +438,7 @@ export default function SendScreen() {
         visible={step === 'share'}
         route={route}
         onChangeRoute={setRoute}
-        recipients={mockRecipients}
+        recipients={recipients}
         selectedIds={recipientIds}
         onToggle={toggleRecipient}
         onBack={() => setStep(hasMusic ? 'ready' : 'ask')}
@@ -404,6 +459,9 @@ const styles = StyleSheet.create({
   plus: { width: 83, height: 83 },
   // 음악 단계
   panel: { position: 'absolute', left: 0, right: 0, top: PANEL_TOP, alignItems: 'center' },
+  // 소리 고르기는 칸이 많아서 구슬을 줄이고 패널을 위로 올림 (탭바에 버튼이 안 가리게)
+  orbSmall: { transform: [{ translateY: -ORB_SIZE * 0.17 }, { scale: 0.62 }] },
+  panelSound: { top: SOUND_PANEL_TOP },
   btn: {
     alignSelf: 'stretch',
     marginHorizontal: 34,
@@ -428,7 +486,7 @@ const styles = StyleSheet.create({
   // 소리 고르기: 2×2 칩
   soundGrid: {
     alignSelf: 'stretch',
-    marginTop: 18,
+    marginTop: 14,
     marginHorizontal: 34,
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -437,7 +495,7 @@ const styles = StyleSheet.create({
   soundChip: {
     width: '48%',
     flexGrow: 1,
-    height: 52,
+    height: 48,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -464,7 +522,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  texts: { alignItems: 'center', marginTop: 8 },
+  texts: { alignItems: 'center', marginTop: 30 }, // 휠 트랙 아래 (피그마: 문구가 휠과 안 겹침)
   message: {
     fontFamily: Fonts.semiBold,
     fontSize: 16,

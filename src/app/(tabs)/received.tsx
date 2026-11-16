@@ -1,9 +1,11 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { toApiError } from '@/api/client';
+import { catalog, openReceipt, receipt } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
 import EmotionOrb from '@/components/EmotionOrb';
 import MusicOrb from '@/components/MusicOrb';
@@ -15,8 +17,8 @@ import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
+import { useApi } from '@/hooks/useApi';
 import { useOrbMusic } from '@/hooks/useOrbMusic';
-import { findReceived, mockLatestReceived } from '@/mocks/receive';
 import { isOpened, markOpened } from '@/stores/inboxStore';
 import type { ReceivedEmotion } from '@/types/emotion';
 import { confirm, notify } from '@/utils/dialog';
@@ -31,25 +33,59 @@ const ORB_VISIBLE = 258; // 큰 구슬 공통 (메인·보내기와 동일)
 //   글로우 다시 보여주고 음악만 다시 듣기. 버튼 없음, 새 수신으로 처리 X
 export default function ReceivedScreen() {
   const { id, replay } = useLocalSearchParams<{ id?: string; replay?: string }>();
-  const received = findReceived(id) ?? mockLatestReceived; // TODO: 수신함 API
   // 처음 연 순간의 열람 여부로 판단 (열자마자 '열람'으로 바뀌어도 화면은 그대로)
-  const [openedBefore] = useState(() => isOpened(received.id));
-  const isReplay = replay === '1' || openedBefore;
-  useEffect(() => markOpened(received.id), [received.id]);
+  const [openedBefore] = useState(() => (id ? isOpened(id) : false));
+  const wantReplay = replay === '1' || openedBefore;
+  // 처음이면 POST /receipts/{id}/open (최초 1회 열람), 기록에서 다시 들어오면 GET .../replay
+  const view = useApi(() => openReceipt(id, wantReplay), [id, wantReplay]);
+  useEffect(() => {
+    if (view.data) markOpened(view.data.received.id);
+  }, [view.data]);
+
+  if (view.error) {
+    // 명세: 회수(보내기 취소)됐거나 내 것이 아니면 404 → '확인할 수 없는 구슬'
+    return (
+      <View style={[styles.root, styles.center]}>
+        <Text style={styles.wordsText}>
+          {view.error.status === 404 ? '확인할 수 없는 구슬이에요.' : view.error.message}
+        </Text>
+        <Pressable onPress={() => router.navigate('/reaction')} style={styles.backLink}>
+          <Text style={styles.musicSub}>받은 감정으로 돌아가기</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  if (!view.data) return <View style={styles.root} />;
+  const { received, replay: isReplay, canReact, actionToken } = view.data;
   // key 로 구슬이 바뀔 때마다 화면 상태·글로우를 새로 시작
   return (
-    <ReceivedView key={`${received.id}-${isReplay}`} received={received} isReplay={isReplay} />
+    <ReceivedView
+      key={`${received.id}-${isReplay}`}
+      received={received}
+      isReplay={isReplay}
+      canReact={canReact}
+      actionToken={actionToken}
+    />
   );
 }
 
-function ReceivedView({ received, isReplay }: { received: ReceivedEmotion; isReplay: boolean }) {
+function ReceivedView({
+  received,
+  isReplay,
+  canReact,
+  actionToken,
+}: {
+  received: ReceivedEmotion;
+  isReplay: boolean;
+  canReact: boolean;
+  actionToken: string | null;
+}) {
   const { width } = useWindowDimensions();
   const [first, second] = received.emotions;
   const emotion = getEmotion(first);
   const hasMusic = !!received.music;
   const isAnonymous = received.route === 'anonymous';
-  // 반응 기능은 익명으로 받은 구슬의 최초 수신 화면에서만
-  const canReact = isAnonymous && !isReplay;
+  // 반응 기능은 익명으로 받은 구슬의 최초 수신 화면에서만 (서버 actions 에 REACT 가 있을 때)
   // 섞은 구슬은 두 감정 이름, 하나면 감정 단어
   const words = second
     ? received.emotions.map((k) => getEmotion(k).label).join(' + ')
@@ -61,9 +97,36 @@ function ReceivedView({ received, isReplay }: { received: ReceivedEmotion; isRep
   const [myReaction, setMyReaction] = useState<string | null>(null);
   const music = useOrbMusic(received.music);
 
+  // 반응 목록 (GET /catalog/reactions): 이모지 → 서버 코드
+  const reactions = useApi(() => catalog.reactions(), []).data ?? [];
   const onSendReaction = (emoji: string) => {
-    // TODO: 반응 전송 API (received.id, emoji)
-    setMyReaction(emoji);
+    const code = reactions.find((r) => r.emoji === emoji)?.code ?? emoji;
+    receipt
+      .react(received.id, actionToken, code) // POST /receipts/{id}/reaction
+      .then(() => {
+        setMyReaction(emoji);
+        setAnswered(true);
+      })
+      .catch((e) => {
+        const err = toApiError(e);
+        notify(err.code === 'ACTION_CLOSED' ? '이미 반응한 구슬이에요.' : err.message);
+        setAnswered(true);
+      });
+  };
+
+  // 조용히 듣기 / 반응 없이 화면을 떠나면 최초 반응 기회 종료 (POST /receipts/{id}/finish)
+  const answeredRef = useRef(answered);
+  useEffect(() => {
+    answeredRef.current = answered;
+  }, [answered]);
+  useEffect(
+    () => () => {
+      if (canReact && !answeredRef.current) void receipt.finish(received.id, actionToken);
+    },
+    [canReact, received.id, actionToken],
+  );
+  const onQuiet = () => {
+    void receipt.finish(received.id, actionToken);
     setAnswered(true);
   };
 
@@ -74,8 +137,13 @@ function ReceivedView({ received, isReplay }: { received: ReceivedEmotion; isRep
       okText: '신고',
       destructive: true,
       onOk: () => {
-        // TODO: 익명 구슬 신고 API (received.id)
-        notify('신고가 접수됐어요.');
+        receipt
+          .report(received.id) // POST /receipts/{id}/reports
+          .then(() => notify('신고가 접수됐어요.'))
+          .catch((e) => {
+            const err = toApiError(e);
+            notify(err.code === 'ALREADY_REPORTED' ? '이미 신고한 구슬이에요.' : err.message);
+          });
       },
     });
 
@@ -118,7 +186,7 @@ function ReceivedView({ received, isReplay }: { received: ReceivedEmotion; isRep
         {!answered ? (
           <View style={styles.buttons}>
             <NeuButton label="반응하기" variant="accent" onPress={() => setSheetOpen(true)} />
-            <NeuButton label="조용히 듣기" variant="dark" onPress={() => setAnswered(true)} />
+            <NeuButton label="조용히 듣기" variant="dark" onPress={onQuiet} />
           </View>
         ) : hasMusic ? (
           <View style={styles.music}>
@@ -174,6 +242,10 @@ function ReceivedView({ received, isReplay }: { received: ReceivedEmotion; isRep
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   safe: { flex: 1 },
+  // 열 수 없는 구슬 (회수됨·없음)
+  center: { alignItems: 'center', justifyContent: 'center', gap: 16 },
+  wordsText: { fontFamily: Fonts.semiBold, fontSize: 16, color: Colors.textSecondary },
+  backLink: { padding: 8 },
   orb: { position: 'absolute', top: 117 + 47 },
   words: {
     position: 'absolute',

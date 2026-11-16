@@ -18,7 +18,8 @@ import DecoOrb from '@/components/DecoOrb';
 import { Icons, Images } from '@/constants/assets';
 import { Colors, NeuCard } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
-import { signIn } from '@/stores/authStore';
+import { toApiError } from '@/api/client';
+import { auth } from '@/api/emori';
 import { notify } from '@/utils/dialog';
 
 type Mode = 'login' | 'signup';
@@ -43,13 +44,25 @@ export default function AuthForm({ mode }: { mode: Mode }) {
     if (busy) return;
     setBusy(true);
     try {
-      // TODO: 연동 시 교체
-      //   로그인   POST /auth/login  { loginId, password } → accessToken
-      //   회원가입 POST /auth/signup { loginId, password } → 가입 후 바로 로그인
-      await signIn('mock-token');
+      // 로그인 POST /auth/login, 회원가입 POST /auth/signup → 가입 후 바로 로그인
+      if (isSignup) await auth.signup(id.trim(), pw);
+      else await auth.login(id.trim(), pw);
       router.replace('/');
-    } catch {
-      notify(isSignup ? '회원가입에 실패했어요.' : '아이디 또는 비밀번호를 확인해주세요.');
+    } catch (e) {
+      const err = toApiError(e);
+      notify(
+        err.status === 409
+          ? '이미 사용 중인 아이디예요.' // 지섭님 결정: 아이디 중복만 확인
+          : err.status === 401
+            ? '아이디 또는 비밀번호를 확인해주세요.'
+            : err.status === 422
+              ? (err.message ?? '입력한 내용을 확인해주세요.')
+              : err.code === 'NETWORK'
+                ? err.message
+                : isSignup
+                  ? '회원가입에 실패했어요.'
+                  : '로그인에 실패했어요.',
+      );
     } finally {
       setBusy(false);
     }

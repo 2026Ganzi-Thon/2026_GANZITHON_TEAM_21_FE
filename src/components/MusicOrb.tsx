@@ -58,6 +58,15 @@ export default function MusicOrb({
     else cancelAnimation(rotation);
   }, [playing, startSpin, rotation]);
 
+  // 음악이 없는 상태(다른 구슬·빈 + 화면)로 바뀌면 돌아간 각도를 원래대로
+  // (안 하면 이전 구슬을 돌린 각도 그대로 + 아이콘이 기울어져 보임)
+  useEffect(() => {
+    if (!enabled) {
+      cancelAnimation(rotation);
+      rotation.set(0);
+    }
+  }, [enabled, rotation]);
+
   const onGestureEnd = (deg: number) => {
     if (deg >= PLAY_DEG) onPlay();
     else if (deg <= STOP_DEG) onStop();

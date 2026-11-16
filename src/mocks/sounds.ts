@@ -1,12 +1,13 @@
 // 가짜 데이터 - 연동 시 GET /catalog/sounds 로 교체
 // PRD v1.4 4-5, 5-2: 서비스가 제공하는 15초 이내 무보컬 소리 중에서 골라 구슬에 넣음 (AI 생성·크레딧 없음)
 import { Sounds } from '@/constants/assets';
+import type { AudioSource } from '@/types/emotion';
 
 export type SoundItem = {
   id: string;
   title: string;
   seconds: number;
-  source: number;
+  source: AudioSource;
 };
 
 export const mockSounds: SoundItem[] = [

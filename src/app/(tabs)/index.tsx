@@ -1,8 +1,10 @@
+import { useFocusEffect } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { records } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
 import EmotionOrb from '@/components/EmotionOrb';
 import CareCard, { useCareStage } from '@/components/CareCard';
@@ -10,10 +12,12 @@ import PageDots from '@/components/PageDots';
 import RecordSheet from '@/components/RecordSheet';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import ViewMenu from '@/components/ViewMenu';
+import { MineOrbs } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
+import { getEmotion } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
+import { useApi } from '@/hooks/useApi';
 import { mockViews, mockWeekLabel } from '@/mocks/home';
-import { getWeeks } from '@/mocks/record';
 import { setViewIndex, useViewIndex } from '@/stores/viewStore';
 
 // 01 메인 (피그마 '메인' / '내 메인')
@@ -23,10 +27,32 @@ import { setViewIndex, useViewIndex } from '@/stores/viewStore';
 export default function HomeScreen() {
   const careStage = useCareStage();
   const index = useViewIndex();
-  const view = mockViews[index];
+  const base = mockViews[index];
   const [menuOpen, setMenuOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const thisWeek = getWeeks(view.kind)[0]; // TODO: 이번 주 기록 API
+  // GET /records (내 감정 = 내가 만든 것만, 전체 = 보낸 + 받은). 탭에 돌아올 때마다 새로
+  const book = useApi(() => records(base.kind), [base.kind]);
+  useFocusEffect(book.reload);
+  const thisWeek = book.data?.weeks[book.data.thisWeekIndex] ?? null;
+  // '내 감정' 구슬 = 이번 주 가장 많이 고른 색 (빨강은 파스텔 구슬이 없어서 분홍)
+  const top = book.data?.topThisWeek;
+  const mineKey = top ? ((top === 'red' ? 'pink' : top) as keyof typeof MineOrbs) : null;
+  const view =
+    base.kind === 'mine' && mineKey
+      ? {
+          ...base,
+          orb: MineOrbs[mineKey],
+          ring: { ...base.ring, glowColor: getEmotion(mineKey).glow },
+        }
+      : base;
+  // 전체 감정 안내 문구: 가장 최근에 감정을 보낸 사람
+  const sender = book.data?.latestSender;
+  const message =
+    base.kind === 'all'
+      ? sender
+        ? `${sender}${sender.startsWith('익명') ? '가' : '님이'} 가장 최근에 감정을 보냈어요.`
+        : '아직 받은 감정이 없어요.'
+      : view.message;
 
   const go = (next: number) => {
     if (next >= 0 && next < mockViews.length) setViewIndex(next);
@@ -48,7 +74,7 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <AppHeader
         title={view.title}
-        subtitle={mockWeekLabel}
+        subtitle={thisWeek?.label ?? mockWeekLabel}
         onPressTitle={() => setMenuOpen(true)}
       />
 
@@ -79,7 +105,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <>
-            <Text style={styles.message}>{view.message}</Text>
+            <Text style={styles.message}>{message}</Text>
             <Text style={styles.hint}>구슬을 눌러 감정 기록을 확인해보세요.</Text>
           </>
         )}

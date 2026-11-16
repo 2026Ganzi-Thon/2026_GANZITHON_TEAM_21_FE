@@ -1,12 +1,15 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import NeuButton from '@/components/NeuButton';
 import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
+import { useDragToClose } from '@/hooks/useDragToClose';
 import { REACTION_EMOJIS } from '@/mocks/receive';
 
 // 단계: + 누르기 → 이모지 고르기 → 보낼지 확인 → 완료
@@ -34,6 +37,8 @@ export default function ReactionSheet({ visible, onSend, onClose, onGoMain }: Pr
     }, 300);
   };
 
+  const { drag, sheetStyle, onLayout } = useDragToClose(visible, () => close());
+
   const send = () => {
     if (!emoji) return;
     onSend(emoji);
@@ -42,84 +47,95 @@ export default function ReactionSheet({ visible, onSend, onClose, onGoMain }: Pr
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <Pressable style={styles.backdrop} onPress={close} />
+      <GestureHandlerRootView style={styles.root}>
+        <Pressable style={styles.backdrop} onPress={close} />
 
-      <View
-        style={[
-          styles.sheet,
-          { height: (step === 'emoji' ? 557 : 395) + insets.bottom * 0.3 },
-          { paddingBottom: insets.bottom },
-        ]}
-      >
-        <View style={styles.handle} />
+        <Animated.View
+          onLayout={onLayout}
+          style={[
+            styles.sheet,
+            { height: (step === 'emoji' ? 557 : 395) + insets.bottom * 0.3 },
+            { paddingBottom: insets.bottom },
+            sheetStyle,
+          ]}
+        >
+          {/* 손잡이를 아래로 끌면 닫힘 */}
+          <GestureDetector gesture={drag}>
+            <View style={styles.dragArea} collapsable={false}>
+              <View style={styles.handle} />
+            </View>
+          </GestureDetector>
 
-        {step === 'done' ? (
-          <View style={styles.center}>
-            <Image source={Icons.check} style={styles.check} contentFit="contain" />
-            <Text style={styles.title}>반응을 성공적으로 보냈어요</Text>
-          </View>
-        ) : (
-          <View style={styles.center}>
-            {/* 가운데 동그라미: 아직 안 골랐으면 +, 골랐으면 이모지 */}
-            <Pressable
-              style={styles.emojiCircle}
-              onPress={() => setStep(step === 'emoji' ? 'pick' : 'emoji')}
-              accessibilityLabel="반응 이모지 고르기"
-            >
-              {emoji ? (
-                <Text style={styles.bigEmoji}>{emoji}</Text>
-              ) : (
-                <Image source={Icons.plus} style={styles.plus} contentFit="contain" />
-              )}
-            </Pressable>
-
-            {step === 'emoji' ? (
-              <ScrollView
-                style={styles.grid}
-                contentContainerStyle={styles.gridContent}
-                showsVerticalScrollIndicator={false}
+          {step === 'done' ? (
+            <View style={styles.center}>
+              <Image source={Icons.check} style={styles.check} contentFit="contain" />
+              <Text style={styles.title}>반응을 성공적으로 보냈어요</Text>
+            </View>
+          ) : (
+            <View style={styles.center}>
+              {/* 가운데 동그라미: 아직 안 골랐으면 +, 골랐으면 이모지 */}
+              <Pressable
+                style={styles.emojiCircle}
+                onPress={() => setStep(step === 'emoji' ? 'pick' : 'emoji')}
+                accessibilityLabel="반응 이모지 고르기"
               >
-                {REACTION_EMOJIS.map((e) => (
-                  <Pressable
-                    key={e}
-                    style={styles.gridItem}
-                    onPress={() => {
-                      setEmoji(e);
-                      setStep('pick');
-                    }}
-                  >
-                    <Text style={styles.gridEmoji}>{e}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            ) : emoji ? (
-              <Text style={styles.title}>이 반응을 보낼까요?</Text>
-            ) : (
-              <>
-                <Text style={styles.title}>보낼 반응을 선택해주세요</Text>
-                <Text style={styles.sub}>+를 누르면 이모지를 선택 할 수 있어요.</Text>
-              </>
-            )}
-          </View>
-        )}
+                {emoji ? (
+                  <Text style={styles.bigEmoji}>{emoji}</Text>
+                ) : (
+                  <Image source={Icons.plus} style={styles.plus} contentFit="contain" />
+                )}
+              </Pressable>
 
-        {step !== 'emoji' && (
-          <View style={styles.buttons}>
-            {step === 'done' ? (
-              <NeuButton label="구슬(메인)로 이동" variant="light" onPress={onGoMain} />
-            ) : (
-              <NeuButton label="보내기" variant="light" disabled={!emoji} onPress={send} />
-            )}
-            <NeuButton label="닫기" variant="dark" onPress={close} />
-          </View>
-        )}
-      </View>
+              {step === 'emoji' ? (
+                <ScrollView
+                  style={styles.grid}
+                  contentContainerStyle={styles.gridContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {REACTION_EMOJIS.map((e) => (
+                    <Pressable
+                      key={e}
+                      style={styles.gridItem}
+                      onPress={() => {
+                        setEmoji(e);
+                        setStep('pick');
+                      }}
+                    >
+                      <Text style={styles.gridEmoji}>{e}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              ) : emoji ? (
+                <Text style={styles.title}>이 반응을 보낼까요?</Text>
+              ) : (
+                <>
+                  <Text style={styles.title}>보낼 반응을 선택해주세요</Text>
+                  <Text style={styles.sub}>+를 누르면 이모지를 선택 할 수 있어요.</Text>
+                </>
+              )}
+            </View>
+          )}
+
+          {step !== 'emoji' && (
+            <View style={styles.buttons}>
+              {step === 'done' ? (
+                <NeuButton label="구슬(메인)로 이동" variant="light" onPress={onGoMain} />
+              ) : (
+                <NeuButton label="보내기" variant="light" disabled={!emoji} onPress={send} />
+              )}
+              <NeuButton label="닫기" variant="dark" onPress={close} />
+            </View>
+          )}
+        </Animated.View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   backdrop: { flex: 1 },
+  dragArea: { paddingBottom: 6 }, // 손잡이 주변까지 끌기 영역
   sheet: {
     backgroundColor: '#1B1B1B',
     borderTopLeftRadius: 16,

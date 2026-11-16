@@ -1,17 +1,28 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { USE_MOCK } from '@/api/client';
+import { careLevel } from '@/api/emori';
 import { getCareStage } from '@/constants/care';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
+import { useApi } from '@/hooks/useApi';
 import { mockMyDays } from '@/mocks/care';
 import { dismissCareCard, useCare } from '@/stores/careStore';
 
 // 케어 넛지 홈 카드 (PRD 6장, 기획 답변: 경고창이 아니라 홈에 자연스러운 카드로)
 // 진단·경고처럼 보이지 않게 부드러운 문장 + 누르면 자세한 안내
+// 단계: 서버(GET /me/care level)가 계산. 목업이면 기존 계산(mockMyDays)
+export function useRawCareStage(): 0 | 1 | 2 {
+  const server = useApi(() => careLevel(), []);
+  if (server.data !== undefined && server.data !== null) return server.data;
+  return USE_MOCK ? getCareStage(mockMyDays) : 0;
+}
+
+// 홈 카드용: 설정에서 껐거나 닫았으면 0
 export function useCareStage() {
   const care = useCare();
-  const stage = getCareStage(mockMyDays); // TODO: 내 감정 기록 API
+  const stage = useRawCareStage();
   return care.enabled && !care.dismissed ? stage : 0;
 }
 

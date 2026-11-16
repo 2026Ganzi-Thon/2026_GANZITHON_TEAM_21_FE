@@ -1,7 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
 
-import { TOKEN_KEY } from '@/api/client';
+import { clearTokens, getAccessToken, saveTokens } from '@/api/tokens';
 
 // 로그인 상태 (토큰이 있으면 로그인된 것으로 봄)
 // loading = 앱 시작 직후 저장된 토큰 읽는 중
@@ -14,17 +13,17 @@ const emit = (next: Status) => {
   listeners.forEach((l) => l());
 };
 
-AsyncStorage.getItem(TOKEN_KEY)
+getAccessToken()
   .then((token) => emit(token ? 'in' : 'out'))
   .catch(() => emit('out'));
 
-export async function signIn(token: string) {
-  await AsyncStorage.setItem(TOKEN_KEY, token);
+export async function signIn(accessToken: string, refreshToken?: string | null) {
+  await saveTokens(accessToken, refreshToken);
   emit('in');
 }
 
 export async function signOut() {
-  await AsyncStorage.removeItem(TOKEN_KEY);
+  await clearTokens();
   emit('out');
 }
 

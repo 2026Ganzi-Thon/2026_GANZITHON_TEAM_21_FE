@@ -3,12 +3,10 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppHeader from '@/components/AppHeader';
-import { useCareStage } from '@/components/CareCard';
+import { useRawCareStage } from '@/components/CareCard';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
-import { getCareStage } from '@/constants/care';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
-import { mockMyDays } from '@/mocks/care';
 
 const TIPS = [
   { title: '천천히 숨 고르기', body: '4초 동안 들이쉬고 6초 동안 내쉬기를 몇 번 반복해보세요.' },
@@ -36,7 +34,7 @@ const SUPPORT = [
 // 1단계: 자기돌봄 안내가 먼저 / 2단계: 전문 지원 정보가 먼저
 export default function CareScreen() {
   // 카드를 닫았어도 이 화면에선 단계가 보이게 직접 계산
-  const stage = useCareStage() || getCareStage(mockMyDays);
+  const stage = useRawCareStage();
   const supportFirst = stage === 2;
 
   const tips = (

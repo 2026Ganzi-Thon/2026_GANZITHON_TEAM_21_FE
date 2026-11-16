@@ -21,11 +21,13 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { toApiError } from '@/api/client';
+import { deleteRecord } from '@/api/emori';
 import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { getEmotion, LIST_ORB_VISIBLE, orbImageStyle, orbSource } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
-import { confirm } from '@/utils/dialog';
+import { confirm, notify } from '@/utils/dialog';
 import type { RecordEntry, WeekRecord } from '@/types/emotion';
 
 const MAX_REACTIONS = 3; // 이보다 많으면 '+N'
@@ -60,7 +62,10 @@ export default function RecordSheet({ week, mode = 'all', onClose, onPressEntry 
       message: '받은 사람의 기록은 그대로 남아요.',
       okText: '삭제',
       destructive: true,
-      onOk: () => setDeleted((prev) => [...prev, entry.id]), // TODO: 발신 기록 삭제 API
+      onOk: () =>
+        deleteRecord(entry.id) // DELETE /records/{id} (내 기록만 숨김, 받은 사람 사본은 유지)
+          .then(() => setDeleted((prev) => [...prev, entry.id]))
+          .catch((e) => notify('삭제하지 못했어요', toApiError(e).message)),
     });
   const entries = week?.entries.filter((e) => !deleted.includes(e.id)) ?? [];
 

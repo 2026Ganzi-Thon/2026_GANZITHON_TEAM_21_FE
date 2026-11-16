@@ -1,15 +1,16 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { inbox as inboxApi } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import { Icons } from '@/constants/assets';
 import { Colors, NeuCard } from '@/constants/colors';
 import { getEmotion, LIST_ORB_VISIBLE, orbImageStyle, orbSource } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
-import { mockInbox } from '@/mocks/receive';
+import { useApi } from '@/hooks/useApi';
 import { useOpenedIds } from '@/stores/inboxStore';
 import { isResting, useRest } from '@/stores/restStore';
 import type { ReceivedEmotion } from '@/types/emotion';
@@ -23,9 +24,12 @@ const ORB = LIST_ORB_VISIBLE; // 리스트 구슬 공통 (피그마 상세기록
 export default function InboxScreen() {
   const opened = useOpenedIds();
   const rest = useRest();
-  const inbox = mockInbox; // TODO: 수신함 API (최신순)
-  const fresh = inbox.filter((r) => !opened.has(r.id));
-  const past = inbox.filter((r) => opened.has(r.id));
+  // GET /inbox (최신순). 탭에 다시 들어올 때마다 새로 불러옴
+  const { data: inbox = [], error, reload } = useApi(() => inboxApi.list(), []);
+  useFocusEffect(reload);
+  const isOpen = (r: ReceivedEmotion) => r.opened || opened.has(r.id);
+  const fresh = inbox.filter((r) => !isOpen(r));
+  const past = inbox.filter(isOpen);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -51,7 +55,11 @@ export default function InboxScreen() {
           <Row key={r.id} item={r} />
         ))}
 
-        {inbox.length === 0 && <Text style={styles.empty}>아직 받은 감정구슬이 없어요.</Text>}
+        {error ? (
+          <Text style={styles.empty}>{error.message}</Text>
+        ) : (
+          inbox.length === 0 && <Text style={styles.empty}>아직 받은 감정구슬이 없어요.</Text>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

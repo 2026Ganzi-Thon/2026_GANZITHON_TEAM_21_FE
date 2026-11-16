@@ -58,7 +58,7 @@ export default function RecipientSheet({
       ? '나에게 보내기'
       : route === 'anonymous'
         ? '익명으로 보내기'
-        : `${count} 곳에 보내기`;
+        : `${count}명에게 보내기`;
   const canSend = route !== 'friends' || count > 0;
 
   const renderRow = (r: Recipient, disabled: boolean) => {
