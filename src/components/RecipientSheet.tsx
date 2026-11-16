@@ -37,7 +37,7 @@ const ROUTE_INFO: Record<Exclude<SendRoute, 'friends'>, string[]> = {
 
 // 공유자 선택 하단 시트 (피그마 '감정_보내기3/4', '가까운_사람_O')
 // - 위쪽 드롭다운으로 전달 경로 선택: 가까운 사람 / 나에게 / 익명으로
-// - 가까운 사람: 친구 목록에서 여러 명 선택 (PRD v1.4 5-1, 거리 조건 없음)
+// - 가까운 사람: 친구 목록에서 한 명 선택 (세부 정책 2-2: 친구에게는 한 번에 한 명씩)
 export default function RecipientSheet({
   visible,
   route,
@@ -52,13 +52,16 @@ export default function RecipientSheet({
   const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
   const count = selectedIds.length;
+  const selectedName = recipients.find((r) => r.id === selectedIds[0])?.name;
 
   const sendLabel =
     route === 'me'
       ? '나에게 보내기'
       : route === 'anonymous'
         ? '익명으로 보내기'
-        : `${count}명에게 보내기`;
+        : selectedName
+          ? `${selectedName}에게 보내기`
+          : '보낼 친구를 골라주세요';
   const canSend = route !== 'friends' || count > 0;
 
   const renderRow = (r: Recipient, disabled: boolean) => {

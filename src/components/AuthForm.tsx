@@ -19,7 +19,7 @@ import { Icons, Images } from '@/constants/assets';
 import { Colors, NeuCard } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
 import { toApiError } from '@/api/client';
-import { auth } from '@/api/emori';
+import { auth, LOGIN_ID_RULE, passwordBytes } from '@/api/emori';
 import { notify } from '@/utils/dialog';
 
 type Mode = 'login' | 'signup';
@@ -36,23 +36,51 @@ export default function AuthForm({ mode }: { mode: Mode }) {
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [busy, setBusy] = useState(false);
+  const [takenId, setTakenId] = useState<string | null>(null); // 중복 확인에서 이미 쓰는 아이디
 
+  // 가입 규칙 (명세 §3): 아이디 소문자·숫자·밑줄 4~20자 (대문자는 소문자로), 비밀번호 8~72바이트
+  const loginId = id.trim().toLowerCase();
+  const idError =
+    !isSignup || loginId === ''
+      ? undefined
+      : !LOGIN_ID_RULE.test(loginId)
+        ? '영어 소문자·숫자·밑줄(_)로 4~20자 입력해주세요.'
+        : takenId === loginId
+          ? '이미 사용 중인 아이디예요.'
+          : undefined;
+  const pwLen = passwordBytes(pw);
+  const pwError =
+    isSignup && pw !== '' && (pwLen < 8 || pwLen > 72)
+      ? pwLen < 8
+        ? '비밀번호는 8자 이상이어야 해요.'
+        : '비밀번호가 너무 길어요.'
+      : undefined;
   const mismatch = isSignup && pw2.length > 0 && pw !== pw2;
-  const ready = id.trim() !== '' && pw !== '' && (!isSignup || (pw2 !== '' && !mismatch));
+  const ready =
+    loginId !== '' && pw !== '' && (!isSignup || (pw2 !== '' && !mismatch && !idError && !pwError));
+
+  // 아이디 칸을 벗어나면 중복 확인 (GET /auth/login-id-availability)
+  const checkId = () => {
+    if (!isSignup || !LOGIN_ID_RULE.test(loginId)) return;
+    auth
+      .available(loginId)
+      .then((ok) => setTakenId(ok ? null : loginId))
+      .catch(() => {}); // 확인 실패는 가입할 때 서버가 다시 검사
+  };
 
   const submit = async () => {
     if (busy) return;
     setBusy(true);
     try {
       // 로그인 POST /auth/login, 회원가입 POST /auth/signup → 가입 후 바로 로그인
-      if (isSignup) await auth.signup(id.trim(), pw);
-      else await auth.login(id.trim(), pw);
+      if (isSignup) await auth.signup(loginId, pw);
+      else await auth.login(loginId, pw);
       router.replace('/');
     } catch (e) {
       const err = toApiError(e);
       notify(
         err.status === 409
-          ? '이미 사용 중인 아이디예요.' // 지섭님 결정: 아이디 중복만 확인
+          ? '이미 사용 중인 아이디예요.' // LOGIN_ID_IN_USE
           : err.status === 401
             ? '아이디 또는 비밀번호를 확인해주세요.'
             : err.status === 422
@@ -107,6 +135,8 @@ export default function AuthForm({ mode }: { mode: Mode }) {
               autoCorrect={false}
               textContentType="username"
               returnKeyType="next"
+              onBlur={checkId}
+              error={idError}
             />
             <Field
               label="비밀번호"
@@ -117,6 +147,7 @@ export default function AuthForm({ mode }: { mode: Mode }) {
               textContentType={isSignup ? 'newPassword' : 'password'}
               returnKeyType={isSignup ? 'next' : 'done'}
               onSubmitEditing={!isSignup && ready ? submit : undefined}
+              error={pwError}
             />
             {isSignup && (
               <Field

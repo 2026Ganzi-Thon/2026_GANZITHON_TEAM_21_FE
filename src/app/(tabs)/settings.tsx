@@ -37,8 +37,8 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
       {
         kind: 'toggle',
         key: 'anonymous',
-        title: '익명 구슬 받기',
-        desc: '익명으로 아무에게 감정을 주고 받기(성인 전용)',
+        title: '익명 구슬 주고받기',
+        desc: '익명으로 감정을 보내고 받기 (만 19세 이상)',
       },
     ],
   },
@@ -117,11 +117,11 @@ export default function SettingsScreen() {
     key === 'mindLens' ? care.enabled : (values[key] ?? defaults[key]);
 
   const onToggle = (key: ToggleKey, next: boolean) => {
-    // 익명 구슬은 성인만 (기능명세 TR-07) - 연동 시 성인 인증 여부로 막기
+    // 익명은 보내기·받기 한 번에 켜고 끔 (세부 정책 1-2), 만 19세 이상만 (서버가 AGE_REQUIRED 로 막음)
     if (key === 'anonymous' && next) {
       confirm({
-        title: '익명 구슬 받기',
-        message: '만 19세 이상만 사용할 수 있어요. 켤까요?',
+        title: '익명 구슬 주고받기',
+        message: '만 19세 이상만 사용할 수 있어요. 켜면 익명 구슬을 보내고 받을 수 있어요.',
         okText: '켜기',
         onOk: () => set(key, true),
       });

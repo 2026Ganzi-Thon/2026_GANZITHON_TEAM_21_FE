@@ -17,8 +17,12 @@ getAccessToken()
   .then((token) => emit(token ? 'in' : 'out'))
   .catch(() => emit('out'));
 
-export async function signIn(accessToken: string, refreshToken?: string | null) {
-  await saveTokens(accessToken, refreshToken);
+export async function signIn(
+  accessToken: string,
+  refreshToken?: string | null,
+  expiresIn?: number, // access 토큰 유효 시간(초)
+) {
+  await saveTokens(accessToken, refreshToken, expiresIn);
   emit('in');
 }
 

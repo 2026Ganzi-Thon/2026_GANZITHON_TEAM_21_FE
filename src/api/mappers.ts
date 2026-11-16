@@ -1,6 +1,8 @@
 // 서버 모양(api/types.ts) → 앱 화면 모양(types/emotion.ts) 변환
-import type { Color, Orb, Receipt, Record, ServerRoute } from '@/api/types';
+import { absoluteUrl } from '@/api/client';
+import type { Color, Orb, Receipt, Record, ServerRoute, Track } from '@/api/types';
 import type {
+  AudioSource,
   EmotionKey,
   ReceivedEmotion,
   RecordEntry,
@@ -13,6 +15,15 @@ export const toKey = (c: Color) => c.toLowerCase() as EmotionKey;
 export const toColor = (k: EmotionKey) => k.toUpperCase() as Color;
 export const orbKeys = (orb?: Orb | null): EmotionKey[] =>
   orb?.emotions.length ? orb.emotions.map((e) => toKey(e.color)) : [];
+export const orbWords = (orb?: Orb | null): string[] => orb?.emotions.map((e) => e.word) ?? [];
+
+// ── 음악: 플레이리스트 트랙을 순서대로, 서버 음원은 토큰을 붙여 재생 ──
+export const toTracks = (tracks: Pick<Track, 'order' | 'playbackUrl'>[]): AudioSource[] =>
+  [...tracks]
+    .sort((a, b) => a.order - b.order)
+    .map((t) => ({ uri: absoluteUrl(t.playbackUrl), auth: true }));
+const orbMusic = (orb?: Orb | null) =>
+  orb?.playlist?.tracks.length ? toTracks(orb.playlist.tracks) : undefined;
 
 // ── 전달 경로 ──
 export const toServerRoute = (r: SendRoute): ServerRoute =>
@@ -41,7 +52,8 @@ export function toReceived(r: Receipt, orb?: Orb | null): ReceivedEmotion {
     senderName: r.sender?.nickname ?? '익명',
     sentAtLabel: timeLabel(r.receivedAt),
     emotions: orbKeys(o).length ? orbKeys(o) : ['blue'], // 구슬 정보가 없으면 기본 색
-    music: o?.sound ? { uri: o.sound.playbackUrl } : undefined,
+    words: orbWords(o),
+    music: orbMusic(o),
     reacted: false,
     opened: !!r.openedAt,
   };
@@ -59,11 +71,23 @@ const weekOfMonth = (t: number) => {
   return Math.floor((d.getDate() - 1) / 7) + 1;
 };
 
-// 그 주에 가장 많이 나온 색 (섞은 구슬은 두 색 각각 1번씩)
+// 대표 색 (명세 §9): 가장 많이 나온 색, 섞은 구슬은 두 색 각각 +1
+// 동률이면 그 색이 가장 최근에 나온 기록, 그것도 같으면 emotions 배열 앞쪽 색
+// entries 는 최신순이어야 함 (서버 기록 순서)
 export function topColor(entries: { emotions: EmotionKey[] }[]): EmotionKey | null {
-  const counts = new Map<EmotionKey, number>();
-  entries.forEach((e) => e.emotions.forEach((k) => counts.set(k, (counts.get(k) ?? 0) + 1)));
-  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const stats = new Map<EmotionKey, { count: number; latest: number; pos: number }>();
+  entries.forEach((e, i) =>
+    e.emotions.forEach((k, pos) => {
+      const prev = stats.get(k);
+      if (prev) prev.count += 1;
+      else stats.set(k, { count: 1, latest: i, pos }); // 처음 본 게 가장 최근 기록
+    }),
+  );
+  return (
+    [...stats.entries()].sort(
+      ([, a], [, b]) => b.count - a.count || a.latest - b.latest || a.pos - b.pos,
+    )[0]?.[0] ?? null
+  );
 }
 
 function counterpartName(r: Record, kind: 'mine' | 'all') {
@@ -71,7 +95,7 @@ function counterpartName(r: Record, kind: 'mine' | 'all') {
     return r.counterpart?.nickname ?? (r.route === 'ANONYMOUS' ? '익명' : '친구');
   if (kind === 'all') return '나(본인)';
   // 내 감정 화면: '내 감정 받은이' 칸
-  if (r.route === 'SELF' || r.route === null) return '나에게';
+  if (r.route === 'SELF') return '나에게';
   if (r.route === 'ANONYMOUS') return '익명';
   return r.counterpart?.nickname ?? '친구';
 }
@@ -80,9 +104,11 @@ export function toEntry(r: Record, kind: 'mine' | 'all'): RecordEntry {
   return {
     id: r.id,
     emotions: orbKeys(r.orb),
+    words: orbWords(r.orb),
+    own: r.side === 'OWN',
     receivedId: r.side === 'RECEIVED' ? (r.receiptId ?? undefined) : undefined,
     senderName: counterpartName(r, kind),
-    hasMusic: !!r.orb.sound,
+    hasMusic: !!r.orb.playlist?.tracks.length,
     reactions: [], // 반응은 상세(GET /records/{id})에만 있음
   };
 }

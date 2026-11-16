@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { records } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
 import EmotionOrb from '@/components/EmotionOrb';
-import CareCard, { useCareStage } from '@/components/CareCard';
+import CareCard, { useCareCard } from '@/components/CareCard';
 import PageDots from '@/components/PageDots';
 import RecordSheet from '@/components/RecordSheet';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
@@ -25,7 +25,7 @@ import { setViewIndex, useViewIndex } from '@/stores/viewStore';
 // - 그룹 화면은 PRD v1.4에서 후속 기능이라 뺌
 // - 구슬 누르면 이번 주 상세 기록
 export default function HomeScreen() {
-  const careStage = useCareStage();
+  const careCard = useCareCard();
   const index = useViewIndex();
   const base = mockViews[index];
   const [menuOpen, setMenuOpen] = useState(false);
@@ -99,9 +99,9 @@ export default function HomeScreen() {
         </View>
 
         {/* 최근 무거운 감정이 반복되면 안내 문구 대신 케어 카드 (PRD 6장) */}
-        {careStage ? (
+        {careCard.stage ? (
           <View style={styles.care}>
-            <CareCard stage={careStage} />
+            <CareCard stage={careCard.stage} noticeId={careCard.noticeId} />
           </View>
         ) : (
           <>

@@ -6,8 +6,8 @@ export const ORB_FILL = 0.85;
 export const LIST_ORB_VISIBLE = 40;
 
 // 감정 휠의 7색 구슬 (휠 위 순서: 오른쪽 위 → 아래 → 왼쪽 위)
-// label = 감정 영역, words = 사전 정의 감정 단어 (기능명세서 v1.2 / PRD v1.3 '감정구슬 매핑 기준')
-// 사용자가 단어를 따로 고르지 않음 - 구슬을 고르면 자동 적용
+// label = 감정 영역, words = 사전 정의 감정 단어 (PRD v1.4 3-2, 순서 = 서버 단어 ID 순서)
+// 백엔드 v0.3 / 유저플로우: 색을 고른 뒤 그 색의 단어 1개를 고름 (서버 ID 'blue_03' = 무기력)
 // fill / centerY: 이미지 안에서 실제 구슬이 차지하는 비율과 세로 중심 위치
 // 최종 에셋은 전부 85% · 정가운데로 맞춰 둠 (이미지를 바꾸면 이 값도 확인)
 // - 구슬 이미지마다 투명 여백이 달라서, 이 값으로 보정해야 화면에서 크기가 똑같아 보임
@@ -87,6 +87,10 @@ export const EMOTIONS: {
 ];
 
 export const getEmotion = (key: EmotionKey) => EMOTIONS.find((e) => e.key === key)!;
+
+// 서버 단어 ID: '소문자색_두자리순서' (blue_03 = 무기력)
+export const emotionId = (key: EmotionKey, word: string) =>
+  `${key}_${String(getEmotion(key).words.indexOf(word) + 1).padStart(2, '0')}`;
 
 // 구슬이 화면에서 지름 `visible` 로 보이도록 이미지 크기·위치를 계산
 export function orbImageStyle(key: EmotionKey, visible: number) {

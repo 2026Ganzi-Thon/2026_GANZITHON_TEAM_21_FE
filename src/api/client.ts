@@ -1,13 +1,27 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
-import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from '@/api/tokens';
+import {
+  clearTokens,
+  getAccessExpiresAt,
+  getAccessToken,
+  getRefreshToken,
+  saveTokens,
+} from '@/api/tokens';
 
-// 백엔드 주소: .env 의 EXPO_PUBLIC_API_URL (예: http://192.168.0.10:8080)
+// 백엔드 주소: .env 의 EXPO_PUBLIC_API_URL
+// 예) http://192.168.0.10:8080 또는 http://192.168.0.10:8080/api/v1 (둘 다 됨)
 // 비워두면 목업 모드 → 서버 없이 지금처럼 가짜 데이터로 동작 (부스 시연용 안전장치)
-export const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
+export const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '').replace(
+  /\/api\/v1$/,
+  '',
+);
 export const USE_MOCK = !API_URL;
 
-// API 명세 0.1 §1: 기본 경로 /api/v1, JSON, camelCase, Authorization: Bearer
+// 서버가 주는 '/api/v1/...' 경로를 전체 주소로 (음원 재생 주소 등)
+export const absoluteUrl = (path: string) =>
+  /^https?:\/\//.test(path) ? path : `${API_URL ?? ''}${path.startsWith('/') ? '' : '/'}${path}`;
+
+// API 명세 v0.3 §1: 기본 경로 /api/v1, JSON, camelCase, Authorization: Bearer
 // eslint-disable-next-line import/no-named-as-default-member
 export const http = axios.create({
   baseURL: `${API_URL ?? ''}/api/v1`,
@@ -71,11 +85,25 @@ async function refreshSession(): Promise<boolean> {
   try {
     // 갱신 요청은 인터셉터를 타지 않게 axios 기본 인스턴스로
     const { data } = await axios.post(`${API_URL}/api/v1/auth/refresh`, { refreshToken });
-    await saveTokens(data.accessToken, data.refreshToken);
+    await saveTokens(data.accessToken, data.refreshToken, data.expiresIn);
     return true;
   } catch {
     return false;
   }
+}
+
+// 갱신은 동시에 한 번만 (여러 요청이 401을 받아도 refresh 1회)
+const refreshOnce = () =>
+  (refreshing ??= refreshSession().finally(() => {
+    refreshing = null;
+  }));
+
+// 음원 재생은 axios 를 안 거쳐서 401 자동 갱신이 안 됨 → 재생 직전에 직접 확인
+// 만료 30초 전이면 미리 갱신하고 쓸 수 있는 access 토큰을 돌려줌
+export async function freshAccessToken(): Promise<string | null> {
+  const expiresAt = await getAccessExpiresAt();
+  if (expiresAt && expiresAt - Date.now() < 30000) await refreshOnce();
+  return getAccessToken();
 }
 
 http.interceptors.response.use(
@@ -86,10 +114,8 @@ http.interceptors.response.use(
     const isAuthCall = config?.url?.startsWith('/auth/');
     if (error.response?.status === 401 && config && !config._retried && !isAuthCall) {
       config._retried = true;
-      refreshing ??= refreshSession().finally(() => {
-        refreshing = null;
-      });
-      if (await refreshing) return http(config);
+      // 원래 요청을 그대로 다시 보냄 (Idempotency-Key 도 같은 키 유지)
+      if (await refreshOnce()) return http(config);
       await clearTokens();
       onSessionExpired();
     }

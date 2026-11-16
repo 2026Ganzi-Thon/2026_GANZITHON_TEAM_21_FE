@@ -29,7 +29,7 @@ export default function TabsLayout() {
     let first = true; // 앱 켤 때 이미 있던 구슬은 알리지 않음
     const check = async () => {
       try {
-        const fresh = (await inbox.list()).filter((r) => !r.opened);
+        const fresh = await inbox.unread(); // GET /inbox?unreadOnly=true
         const news = first ? undefined : fresh.find((r) => !seen.has(r.id));
         fresh.forEach((r) => seen.add(r.id));
         first = false;

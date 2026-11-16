@@ -14,6 +14,7 @@ import type { EmotionKey } from '@/types/emotion';
 type Props = {
   visible: boolean;
   emotions: EmotionKey[]; // 섞은 구슬이면 2개
+  words?: string[]; // 고른 단어 (emotions 와 같은 순서). 없으면 그 색의 단어 전체
   senderName: string;
   timeLabel: string;
   hasMusic: boolean;
@@ -23,11 +24,12 @@ type Props = {
 };
 
 // 구슬 하나의 상세 기록 팝업 (PRD v1.4 4-4, 4-5 표: '구슬 짧게 탭 → 감정 및 반응 상세기록 팝업')
-// - 감정 정보(색 영역 + 단어 4개)를 구슬마다 따로 보여줌 → 섞은 구슬은 두 감정 모두 (PRD 3-3)
+// - 감정 정보(색 영역 + 고른 단어)를 구슬마다 따로 보여줌 → 섞은 구슬은 두 감정 모두 (PRD 3-3)
 // - 보낸이 / 받은 시각 / 소리 여부 / 반응
 export default function OrbDetailSheet({
   visible,
   emotions,
+  words,
   senderName,
   timeLabel,
   hasMusic,
@@ -73,13 +75,13 @@ export default function OrbDetailSheet({
             </View>
           </View>
 
-          {/* 감정마다 한 줄: 색 영역 + 사전 정의 단어 (사용자가 단어를 고르지 않음, PRD 3-1) */}
-          {emotions.map((k) => {
+          {/* 감정마다 한 줄: 색 영역 + 고른 단어 */}
+          {emotions.map((k, i) => {
             const e = getEmotion(k);
             return (
               <View key={k} style={styles.row}>
                 <Text style={styles.rowLabel}>{e.label}</Text>
-                <Text style={styles.rowValue}>{e.words.join(', ')}</Text>
+                <Text style={styles.rowValue}>{words?.[i] ?? e.words.join(', ')}</Text>
               </View>
             );
           })}

@@ -1,47 +1,77 @@
-import { useAudioPlayer } from 'expo-audio';
+import { useAudioPlayer, type AudioSource as PlayerSource } from 'expo-audio';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
+import { freshAccessToken } from '@/api/client';
 import type { AudioSource } from '@/types/emotion';
 import { notify } from '@/utils/dialog';
 
-// 감정구슬 음악 재생 (기능명세 MU-03 ~ MU-08)
+// 서버 음원은 로그인 토큰을 헤더에 붙여야 재생됨 (명세 §6, FE_INTEGRATION)
+// 재생 직전에 토큰을 확인해서 붙임 (만료가 가까우면 먼저 갱신). 토큰은 주소에 넣지 않음
+async function toPlayerSource(src: AudioSource): Promise<PlayerSource> {
+  if (typeof src === 'number') return src;
+  if (!src.auth) return { uri: src.uri };
+  const token = await freshAccessToken();
+  return { uri: src.uri, headers: token ? { Authorization: `Bearer ${token}` } : undefined };
+}
+
+// 감정구슬 음악 재생 (PRD 4-5, 기능명세 MU-03 ~ MU-08)
+// - 플레이리스트(AI 음악 최대 3곡)를 순서대로 한 번 재생
 // - 자동 재생 X, play() 를 불러야만 재생
 // - 화면을 떠나거나 앱이 백그라운드로 가면 정지
-export function useOrbMusic(source?: AudioSource) {
-  const player = useAudioPlayer(source ?? null);
+export function useOrbMusic(tracks?: AudioSource[]) {
+  const player = useAudioPlayer(null);
   const [playing, setPlaying] = useState(false);
+  const index = useRef(0); // 지금 재생 중인 곡
+  const session = useRef(0); // 재생/정지할 때마다 +1 → 늦게 끝난 불러오기는 무시
 
   const stop = useCallback(() => {
+    session.current += 1;
     try {
       player.pause();
-      player.seekTo(0);
     } catch {
       // 이미 정리된 플레이어면 무시
     }
     setPlaying(false);
   }, [player]);
 
-  const play = useCallback(() => {
-    if (!source) return;
-    try {
-      player.seekTo(0);
-      player.play();
-      setPlaying(true);
-    } catch {
-      setPlaying(false);
-      notify('음악을 재생하지 못했어요', '감정구슬은 그대로 확인할 수 있어요.');
-    }
-  }, [player, source]);
+  const playAt = useCallback(
+    async (i: number, mySession: number) => {
+      const src = tracks?.[i];
+      if (!src) return;
+      try {
+        const source = await toPlayerSource(src);
+        if (mySession !== session.current) return; // 그 사이 정지됨
+        player.replace(source);
+        player.play();
+        index.current = i;
+        setPlaying(true);
+      } catch {
+        if (mySession !== session.current) return;
+        setPlaying(false);
+        notify('음악을 재생하지 못했어요', '감정구슬은 그대로 확인할 수 있어요.');
+      }
+    },
+    [player, tracks],
+  );
 
-  // 15초 이내 음원이 끝나면 정지 상태로
+  const play = useCallback(() => {
+    if (!tracks?.length) return;
+    session.current += 1;
+    void playAt(0, session.current);
+  }, [playAt, tracks]);
+
+  // 한 곡이 끝나면 다음 곡, 마지막 곡이 끝나면 정지 상태로
   useEffect(() => {
     const sub = player.addListener('playbackStatusUpdate', (status) => {
-      if (status.didJustFinish) setPlaying(false);
+      if (!status.didJustFinish) return;
+      const next = index.current + 1;
+      if (tracks && next < tracks.length) void playAt(next, session.current);
+      else setPlaying(false);
     });
     return () => sub.remove();
-  }, [player]);
+  }, [player, playAt, tracks]);
 
   // 앱이 백그라운드로 가면 정지 (MU-06)
   useEffect(() => {
