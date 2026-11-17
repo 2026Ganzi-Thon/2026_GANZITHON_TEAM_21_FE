@@ -1,12 +1,24 @@
-// 서버가 주고받는 모양 (백엔드 API 명세 v0.3, 11/16 지섭님 브랜치 기준)
+// 서버가 주고받는 모양 (백엔드 API 명세 v0.3 + 기획 결정 11/16 반영 제안)
 // 화면에서는 이 타입을 직접 쓰지 않고 mappers.ts 에서 앱 모양으로 바꿔서 씀
+// ※ 11/16 기획 결정으로 백엔드가 바꾸는 중: 색 단위 저장, 샘플 음악, 생년월일
+//    서버가 올라오면 실제 모양과 다시 맞출 것
 
 export type Color = 'YELLOW' | 'ORANGE' | 'PINK' | 'RED' | 'PURPLE' | 'BLUE' | 'GREEN';
 
-// 고른 단어 하나. id = '소문자색_두자리순서' (예: yellow_03 = 홀가분함)
-export type Emotion = { id: string; color: Color; area: string; word: string };
+// 감정 하나 = 색 + 그 색에 매핑된 단어들 (기획 결정: 단어를 따로 고르지 않음)
+// v0.3 처럼 단어 1개(word)로 와도 읽을 수 있게 둘 다 받음
+export type Emotion = { id?: string; color: Color; area: string; words?: string[]; word?: string };
 
-// AI ASMR 음원 (최대 30초, 구슬당 3곡). playbackUrl 은 로그인 토큰이 있어야 재생됨
+// 샘플 음악 (15초 이내, 무보컬). GET /catalog/sounds
+export type Sound = {
+  id: string;
+  title: string;
+  color: Color | null;
+  durationMs: number;
+  playbackUrl: string;
+};
+
+// 구슬에 붙은 음원. playbackUrl 은 로그인 토큰이 있어야 재생됨
 export type Track = {
   id: string;
   order: number;
@@ -112,7 +124,7 @@ export type Me = {
   loginId: string;
   nickname: string;
   friendCode: string;
-  adultStatus: 'UNKNOWN' | 'VERIFIED_19_PLUS' | 'INELIGIBLE';
+  adultStatus: 'UNKNOWN' | 'VERIFIED_19_PLUS' | 'INELIGIBLE'; // UNKNOWN = 생년월일 없음
 };
 
 export type Session = { accessToken: string; refreshToken: string; expiresIn: number };

@@ -1,28 +1,16 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import {
-  Keyboard,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
-import Animated, { useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { newIdempotencyKey, toApiError } from '@/api/client';
 import {
   cancelSent,
+  catalogSounds,
   createOrb,
   dispatchOrb,
   friends as friendsApi,
-  isMusicDone,
-  music as musicApi,
-  type MusicJob,
 } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
 import EmotionOrb from '@/components/EmotionOrb';
@@ -36,7 +24,7 @@ import { Fonts } from '@/constants/typography';
 import { useApi } from '@/hooks/useApi';
 import { useOrbMusic } from '@/hooks/useOrbMusic';
 import { notifyReacted } from '@/mocks/notifications';
-import type { EmotionKey, EmotionPick, SendRoute } from '@/types/emotion';
+import type { EmotionKey, SendRoute } from '@/types/emotion';
 import { confirm, notify } from '@/utils/dialog';
 
 const ORB_SIZE = 306; // 링 지름 300 (메인과 같은 크기)
@@ -46,27 +34,13 @@ const CENTER_Y = 224; // 헤더 아래 ~ 휠 중심 (피그마 기준)
 const ORB_CENTER_Y = CENTER_Y; // 가운데 큰 구슬 = 휠 중심 (피그마)
 const MAX_EMOTIONS = 2;
 const PANEL_TOP = 400; // 음악 단계 안내·버튼 시작 위치 (탭바와 안 겹치게 고정)
-const SMALL_PANEL_TOP = 300; // 단어 고르기·음악 설명 패널 (구슬을 줄여서 위로)
-const PROMPT_MAX = 300; // 음악 설명 최대 글자 (명세 §6)
-const POLL_MS = 3000; // 음악 생성 상태 확인 간격 (명세 §6: 약 3초)
+const SMALL_PANEL_TOP = 300; // 음악 고르기 패널 (구슬을 줄여서 위로)
 const CANCEL_MS = 5 * 60 * 1000; // 보낸 뒤 5분 안에만 취소 가능 (세부 정책 2-1)
 
-// 단계 (백엔드 v0.3 / 유저플로우)
-// empty(+) → pick(휠, 1~2색) → word(색마다 단어 1개) → ask(음악 넣을지)
-//   → prompt(음악 설명, 선택) → generating(3곡 생성, 3초마다 확인) → ready(돌려서 듣기) → share
-//                                  └ failed(실패한 곡만 다시 만들기 / 음악 없이)
-//   └ 감정 구슬만 보내기 ──────────────────────────────────────────────→ share → sent(5분 취소)
-type Step =
-  | 'empty'
-  | 'pick'
-  | 'word'
-  | 'ask'
-  | 'prompt'
-  | 'generating'
-  | 'failed'
-  | 'ready'
-  | 'share'
-  | 'sent';
+// 단계 (기획 결정 11/16: 단어는 따로 고르지 않음, 음악은 미리 만든 15초 샘플)
+// empty(+) → pick(휠, 1~2색) → ask(음악 넣을지) → sound(샘플 고르기·미리듣기) → ready(돌려서 듣기)
+//   └ 감정 구슬만 보내기 ─────────────────────────────────────────────→ share → sent(5분 취소)
+type Step = 'empty' | 'pick' | 'ask' | 'sound' | 'ready' | 'share' | 'sent';
 
 const nowMs = () => Date.now();
 
@@ -82,10 +56,7 @@ export default function SendScreen() {
   const { width } = useWindowDimensions();
   const [step, setStep] = useState<Step>('empty');
   const [emotions, setEmotions] = useState<EmotionKey[]>([]);
-  const [words, setWords] = useState<Partial<Record<EmotionKey, string>>>({});
-  const [prompt, setPrompt] = useState('');
-  const [job, setJob] = useState<MusicJob | null>(null);
-  const [musicOrbId, setMusicOrbId] = useState<string | null>(null); // 음악을 만든 초안 구슬
+  const [soundId, setSoundId] = useState<string | null>(null);
   const [hasMusic, setHasMusic] = useState(false);
   const [recipientId, setRecipientId] = useState<string | null>(null);
   const [route, setRoute] = useState<SendRoute>('friends');
@@ -102,12 +73,6 @@ export default function SendScreen() {
     return keys.current.get(name)!;
   };
 
-  const picks: EmotionPick[] = emotions.flatMap((key) =>
-    words[key] ? [{ key, word: words[key]! }] : [],
-  );
-  const allWordsPicked = emotions.length > 0 && picks.length === emotions.length;
-  const pickSig = picks.map((p) => `${p.key}:${p.word}`).join(',');
-
   // 전송 완료 화면: 취소 가능 시간 1초마다 갱신
   useEffect(() => {
     if (step !== 'sent') return;
@@ -120,33 +85,21 @@ export default function SendScreen() {
   // 받을 친구 목록 (GET /friends)
   const friendList = useApi(() => friendsApi.list(), []).data ?? [];
   const recipients = friendList.map((f) => ({ id: f.id, name: f.name, avatar: Avatars.a1 }));
-  const music = useOrbMusic(hasMusic ? job?.tracks : undefined);
 
-  // 음악 생성 중: 약 3초마다 상태 확인 → 끝나면(완성·실패) 멈춤
+  // 샘플 음악 목록 (GET /catalog/sounds). 고른 색과 어울리는 음악을 앞에
+  const allSounds = useApi(() => catalogSounds.list(), []).data ?? [];
+  const sounds = [...allSounds].sort(
+    (a, b) =>
+      Number(!!b.color && emotions.includes(b.color)) -
+      Number(!!a.color && emotions.includes(a.color)),
+  );
+  const sound = allSounds.find((x) => x.id === soundId);
+  const music = useOrbMusic(sound ? [sound.source] : undefined);
+
+  // 음악을 고르면 바로 미리듣기
   useEffect(() => {
-    if (step !== 'generating' || !job || isMusicDone(job.status)) return;
-    const t = setTimeout(() => {
-      musicApi
-        .status(job.id) // GET /asmr-generations/{id}
-        .then((next) => {
-          setJob(next);
-          if (next.status === 'READY') {
-            setHasMusic(true);
-            setStep('ready');
-          } else if (next.status === 'FAILED' || next.status === 'PARTIAL_FAILED') {
-            setStep('failed');
-          }
-        })
-        .catch(() => setJob({ ...job })); // 일시 오류면 다음 주기에 다시 확인
-    }, POLL_MS);
-    return () => clearTimeout(t);
-  }, [step, job]);
-
-  // 음악 설명 입력할 때 키보드에 가리지 않게 화면을 올림
-  const keyboard = useAnimatedKeyboard();
-  const liftStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -Math.max(0, keyboard.height.get() - 250) }],
-  }));
+    if (step === 'sound' && soundId) music.play();
+  }, [step, soundId, music.play]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleEmotion = (key: EmotionKey) => {
     setEmotions((prev) => {
@@ -157,88 +110,32 @@ export default function SendScreen() {
     });
   };
 
-  const pickWord = (key: EmotionKey, word: string) =>
-    setWords((prev) => ({ ...prev, [key]: prev[key] === word ? undefined : word }));
-
   // 친구에게는 한 번에 한 명 (세부 정책 2-2) → 다른 친구를 누르면 바뀜
   const toggleRecipient = (id: string) => setRecipientId((prev) => (prev === id ? null : id));
 
-  // "감정 선택을 마쳤다면 바깥을 터치" → 단어 고르기
+  // "감정 선택을 마쳤다면 바깥을 터치" → 음악 넣을지 묻기
   const onPressOutside = () => {
-    if (step === 'pick' && emotions.length > 0) setStep('word');
-    if (step === 'prompt') Keyboard.dismiss();
+    if (step === 'pick' && emotions.length > 0) setStep('ask');
   };
 
-  const dropMusic = () => {
+  // 고른 음악 넣기 → 구슬을 돌려서 들어보고 터치로 보내기
+  const onUseSound = () => {
+    if (!soundId) return;
+    music.stop();
+    setHasMusic(true);
+    setStep('ready');
+  };
+
+  // 음악 없이 감정 구슬만
+  const onlyOrb = () => {
     music.stop();
     setHasMusic(false);
-    setJob(null);
-    setMusicOrbId(null);
-  };
-
-  // 단어를 다 골랐으면 음악 넣을지 묻기
-  const onWordsDone = () => {
-    if (!allWordsPicked) return;
-    dropMusic(); // 단어가 바뀌면 음악도 새로 (재생성은 새 초안, 명세 §5)
-    setStep('ask');
-  };
-
-  // 음악 만들기: 초안 구슬 → AI 음악 생성 요청 (설명은 안 써도 됨)
-  const onGenerate = async () => {
-    Keyboard.dismiss();
-    if (busy) return;
-    setBusy(true);
-    try {
-      const orbId = await createOrb(picks, keyFor(`orb-music:${pickSig}`)); // POST /orbs
-      const started = await musicApi.start(orbId, prompt, keyFor(`music:${orbId}`)); // POST /orbs/{id}/asmr-generations
-      keys.current.delete(`orb-music:${pickSig}`); // 다음에 다시 만들면 새 초안
-      setMusicOrbId(orbId);
-      setJob(started);
-      if (started.status === 'READY') {
-        setHasMusic(true);
-        setStep('ready');
-      } else
-        setStep(
-          started.status === 'QUEUED' || started.status === 'PROCESSING' ? 'generating' : 'failed',
-        );
-    } catch (e) {
-      const err = toApiError(e);
-      notify(
-        '음악을 만들지 못했어요',
-        err.code === 'GENERATION_UNAVAILABLE' || err.status === 503
-          ? '지금은 음악을 만들 수 없어요. 감정 구슬만 보낼 수 있어요.'
-          : err.message,
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // 실패한 곡만 다시 만들기 (성공한 곡은 그대로)
-  const onRetry = async () => {
-    if (!job || busy) return;
-    setBusy(true);
-    try {
-      const next = await musicApi.retry(job.id, newIdempotencyKey()); // POST /asmr-generations/{id}/retry
-      setJob(next);
-      setStep(next.status === 'READY' ? 'ready' : 'generating');
-      if (next.status === 'READY') setHasMusic(true);
-    } catch (e) {
-      notify('다시 만들지 못했어요', toApiError(e).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // 음악 없이 감정 구슬만 → 보낼 때 음악 없는 새 초안을 만듦
-  const onlyOrb = () => {
-    Keyboard.dismiss();
-    dropMusic();
+    setSoundId(null);
     setStep('share');
   };
 
   // 홈 화면 큰 위젯에서 구슬을 누르고 들어오면 (ganzithon21://send?emotion=blue)
-  // 그 색을 골라둔 휠 화면에서 시작 → 하나 더 고르면 섞기, 바깥 터치하면 단어 고르기
+  // 그 색을 골라둔 휠 화면에서 시작 → 하나 더 고르면 섞기, 바깥 터치하면 다음
   // (effect 안에서 setState 하지 않고, 렌더 중에 '처음 보는 값'일 때만 상태를 맞춤)
   const { emotion: preset } = useLocalSearchParams<{ emotion?: string }>();
   const [appliedPreset, setAppliedPreset] = useState<string>();
@@ -250,10 +147,7 @@ export default function SendScreen() {
       setRecipientId(null);
       setRoute('friends');
       setHasMusic(false);
-      setJob(null);
-      setMusicOrbId(null);
-      setWords({});
-      setPrompt('');
+      setSoundId(null);
       setEmotions([key]);
       setStep('pick');
     }
@@ -269,10 +163,7 @@ export default function SendScreen() {
     setSent(null);
     setStep('empty');
     setEmotions([]);
-    setWords({});
-    setPrompt('');
-    setJob(null);
-    setMusicOrbId(null);
+    setSoundId(null);
     setRecipientId(null);
     setRoute('friends');
     setHasMusic(false);
@@ -283,11 +174,14 @@ export default function SendScreen() {
     if (route === 'friends' && !recipientId) return;
     setBusy(true);
     try {
-      // 음악을 붙였으면 그 초안, 아니면 음악 없는 초안을 새로 (POST /orbs)
-      const orbId =
-        hasMusic && musicOrbId ? musicOrbId : await createOrb(picks, keyFor(`orb:${pickSig}`));
+      const attach = hasMusic ? soundId : null;
+      // 초안 구슬 (POST /orbs {colors, soundId}) → 보내기 (POST /orbs/{id}/dispatches)
+      const orbId = await createOrb(
+        emotions,
+        attach,
+        keyFor(`orb:${emotions.join('+')}:${attach}`),
+      );
       const friendId = route === 'friends' ? recipientId : null;
-      // POST /orbs/{id}/dispatches (나에게 / 친구 1명 / 익명)
       const result = await dispatchOrb(
         orbId,
         route,
@@ -304,11 +198,12 @@ export default function SendScreen() {
             : `${name}에게 감정을 보냈어요.`;
       music.stop();
       const at = nowMs();
+      const labels = emotions.map((k) => getEmotion(k).label).join(' + ');
       setSent({
         until: result.cancelUntil ?? at + CANCEL_MS,
         dispatchId: result.dispatchId,
         done,
-        labels: `${picks.map((p) => p.word).join(' + ')}${hasMusic ? ' · 음악 3곡' : ''}`,
+        labels: `${labels}${hasMusic && sound ? ` · ${sound.title}` : ''}`,
       });
       setNow(at);
       setStep('sent');
@@ -325,7 +220,6 @@ export default function SendScreen() {
         FRIENDSHIP_CHANGED: '친구 관계가 바뀌었어요. 받는 사람을 다시 골라주세요.',
         AGE_REQUIRED: '익명 보내기는 만 19세 이상만 쓸 수 있어요.',
         ANONYMOUS_DISABLED: '설정에서 익명 구슬을 켜야 보낼 수 있어요.',
-        PLAYLIST_NOT_READY: '음악이 아직 다 만들어지지 않았어요.',
       };
       notify('보내지 못했어요', msg[err.code] ?? err.message);
     } finally {
@@ -369,13 +263,8 @@ export default function SendScreen() {
   const [first, second] = emotions;
   const firstEmotion = first ? getEmotion(first) : undefined;
 
-  const isLowerStep =
-    step === 'ask' ||
-    step === 'generating' ||
-    step === 'failed' ||
-    step === 'ready' ||
-    step === 'sent';
-  const isSmallOrb = step === 'word' || step === 'prompt';
+  const isLowerStep = step === 'ask' || step === 'ready' || step === 'sent';
+  const isSmallOrb = step === 'sound';
 
   const message =
     step === 'empty'
@@ -385,11 +274,9 @@ export default function SendScreen() {
         : [
             emotions.map((k) => getEmotion(k).label).join(' + '),
             emotions.length === 1
-              ? '바깥을 터치하면 단어 고르기, 하나 더 고르면 섞기'
-              : '바깥을 터치해서 단어 고르기',
+              ? '감정 선택을 마쳤다면 바깥을 터치, 하나 더 고르면 섞기'
+              : '감정 선택을 마쳤다면 바깥을 터치하기',
           ];
-
-  const failedCount = job ? job.total - job.done : 0;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -399,9 +286,9 @@ export default function SendScreen() {
         <AppHeader title="감정 보내기" />
       </View>
 
-      <Animated.View
+      <View
         // 아래 단계는 버튼까지 터치되도록 영역을 늘림 (안드로이드는 영역 밖 터치가 안 됨)
-        style={[styles.stage, (isLowerStep || isSmallOrb) && styles.stageTall, liftStyle]}
+        style={[styles.stage, (isLowerStep || isSmallOrb) && styles.stageTall]}
         pointerEvents="box-none"
       >
         {step === 'pick' && (
@@ -442,7 +329,7 @@ export default function SendScreen() {
                 step === 'empty'
                   ? () => setStep('pick')
                   : step === 'ready'
-                    ? () => setStep('share') // 완성된 음악 구슬은 터치로 보내기
+                    ? () => setStep('share') // 음악 구슬은 터치로 보내기
                     : onPressOutside
               }
             >
@@ -453,68 +340,15 @@ export default function SendScreen() {
           </MusicOrb>
         </View>
 
-        {/* ── 단어 고르기: 색마다 단어 1개 (백엔드 v0.3, 유저플로우) ── */}
-        {step === 'word' && (
-          <View style={[styles.panel, styles.panelSmall]}>
-            <Text style={styles.message}>지금 감정에 가까운 단어를 골라주세요.</Text>
-            {emotions.map((key) => {
-              const e = getEmotion(key);
-              return (
-                <View key={key} style={styles.wordGroup}>
-                  <Text style={styles.wordArea}>{e.label}</Text>
-                  <View style={styles.wordChips}>
-                    {e.words.map((w) => {
-                      const on = words[key] === w;
-                      return (
-                        <Pressable
-                          key={w}
-                          onPress={() => pickWord(key, w)}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: on }}
-                          style={({ pressed }) => [
-                            styles.chip,
-                            on ? styles.chipOn : styles.btnDark,
-                            pressed && styles.pressed,
-                          ]}
-                        >
-                          <Text style={styles.chipLabel}>{w}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              );
-            })}
-            <View style={styles.sentButtons}>
-              <Pressable
-                onPress={() => setStep('pick')}
-                style={({ pressed }) => [styles.btnHalf, styles.btnDark, pressed && styles.pressed]}
-              >
-                <Text style={styles.btnLabel}>색 다시 고르기</Text>
-              </Pressable>
-              <Pressable
-                onPress={onWordsDone}
-                disabled={!allWordsPicked}
-                style={({ pressed }) => [
-                  styles.btnHalf,
-                  styles.btnAccent,
-                  !allWordsPicked && styles.disabled,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={styles.btnLabel}>다음</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
         {/* ── 음악 넣기 (피그마 '감정_보내기_음악') ── */}
         {step === 'ask' && (
           <View style={styles.panel}>
-            <Text style={styles.message}>{picks.map((p) => p.word).join(' + ')}</Text>
-            <Text style={styles.hint}>감정에 어울리는 음악을 만들어 넣을 수 있어요.</Text>
+            <Text style={styles.message}>
+              {emotions.map((k) => getEmotion(k).label).join(' + ')}
+            </Text>
+            <Text style={styles.hint}>감정에 어울리는 음악을 넣을 수 있어요.</Text>
             <Pressable
-              onPress={() => setStep('prompt')}
+              onPress={() => setStep('sound')}
               style={({ pressed }) => [
                 styles.btn,
                 styles.btnAccent,
@@ -533,102 +367,55 @@ export default function SendScreen() {
           </View>
         )}
 
-        {/* 음악 설명 (선택). 비워둬도 고른 감정으로 만듦 */}
-        {step === 'prompt' && (
-          <View style={styles.panelPrompt}>
-            <TextInput
-              value={prompt}
-              onChangeText={setPrompt}
-              placeholder={
-                '어떤 음악이면 좋을지 적어주세요. (안 써도 돼요)\n\nex) 긴장을 풀 수 있는 잔잔한 빗소리'
-              }
-              placeholderTextColor="#8A8F98"
-              multiline
-              maxLength={PROMPT_MAX}
-              textAlignVertical="top"
-              style={styles.prompt}
-            />
-            <Pressable
-              onPress={onGenerate}
-              disabled={busy}
-              style={({ pressed }) => [
-                styles.btn,
-                styles.btnFull,
-                styles.btnAccent,
-                styles.btnStack,
-                busy && styles.disabled,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={styles.btnLabel}>{busy ? '요청하는 중…' : '음악 만들기'}</Text>
-            </Pressable>
-            <Pressable
-              onPress={onlyOrb}
-              style={({ pressed }) => [
-                styles.btn,
-                styles.btnFull,
-                styles.btnDark,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={styles.btnLabel}>감정 구슬만 보내기</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {step === 'generating' && job && (
-          <View style={styles.panel}>
-            <Text style={styles.message}>감정에 어울리는 음악을 만들고 있어요.</Text>
-            <View style={styles.track}>
-              <View
-                style={[styles.bar, { width: `${Math.max(8, (job.done / job.total) * 100)}%` }]}
-              />
+        {/* ── 샘플 음악 고르기 (15초, 무보컬). 누르면 바로 미리듣기 ── */}
+        {step === 'sound' && (
+          <View style={[styles.panel, styles.panelSmall]}>
+            <Text style={styles.message}>어떤 음악을 넣을까요?</Text>
+            <View style={styles.soundGrid}>
+              {sounds.map((x) => {
+                const on = x.id === soundId;
+                return (
+                  <Pressable
+                    key={x.id}
+                    onPress={() => setSoundId(x.id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    style={({ pressed }) => [
+                      styles.soundChip,
+                      on ? styles.chipOn : styles.btnDark,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    {x.color && (
+                      <View style={[styles.dot, { backgroundColor: getEmotion(x.color).glow }]} />
+                    )}
+                    <Text style={styles.chipLabel}>{x.title}</Text>
+                    <Text style={styles.soundSec}>{x.seconds}초</Text>
+                  </Pressable>
+                );
+              })}
             </View>
-            <Text style={styles.note}>
-              {job.done}/{job.total}곡 완성 · 잠시만 기다려주세요
-            </Text>
-            <Pressable
-              onPress={onlyOrb}
-              style={({ pressed }) => [
-                styles.btn,
-                styles.btnDark,
-                styles.btnFirst,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={styles.btnLabel}>음악 없이 보내기</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {step === 'failed' && job && (
-          <View style={styles.panel}>
-            <Text style={styles.message}>
-              {job.done > 0
-                ? `음악 ${job.total}곡 중 ${failedCount}곡을 만들지 못했어요.`
-                : '음악을 만들지 못했어요.'}
-            </Text>
-            <Pressable
-              onPress={onRetry}
-              disabled={busy}
-              style={({ pressed }) => [
-                styles.btn,
-                styles.btnAccent,
-                styles.btnFirst,
-                busy && styles.disabled,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={styles.btnLabel}>
-                {job.done > 0 ? '못 만든 곡 다시 만들기' : '다시 만들기'}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={onlyOrb}
-              style={({ pressed }) => [styles.btn, styles.btnDark, pressed && styles.pressed]}
-            >
-              <Text style={styles.btnLabel}>음악 없이 보내기</Text>
-            </Pressable>
+            {sounds.length === 0 && <Text style={styles.note}>음악 목록을 불러오지 못했어요.</Text>}
+            <View style={styles.sentButtons}>
+              <Pressable
+                onPress={onlyOrb}
+                style={({ pressed }) => [styles.btnHalf, styles.btnDark, pressed && styles.pressed]}
+              >
+                <Text style={styles.btnLabel}>음악 없이 보내기</Text>
+              </Pressable>
+              <Pressable
+                onPress={onUseSound}
+                disabled={!soundId}
+                style={({ pressed }) => [
+                  styles.btnHalf,
+                  styles.btnAccent,
+                  !soundId && styles.disabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.btnLabel}>이 음악 넣기</Text>
+              </Pressable>
+            </View>
           </View>
         )}
 
@@ -673,7 +460,7 @@ export default function SendScreen() {
 
         {step === 'ready' && (
           <View style={styles.panel}>
-            <Text style={styles.message}>{picks.map((p) => p.word).join(' + ')}</Text>
+            <Text style={styles.message}>{sound?.title} 음악을 넣었어요.</Text>
             {/* 돌리기 어려우면 눌러서 듣기 (유저플로우: 대체 재생 버튼) */}
             <Pressable
               onPress={() => (music.playing ? music.stop() : music.play())}
@@ -685,15 +472,12 @@ export default function SendScreen() {
               <Image source={Icons.headphones} style={styles.headphones} contentFit="contain" />
               <Text style={styles.note}>{music.playing ? '■ 멈추기' : '▶ 듣기'}</Text>
             </Pressable>
-            <Text style={styles.message}>
-              감정과 어울리는 음악 {job?.done ?? 3}곡을 만들었어요.
-            </Text>
             <Text style={styles.hint}>
               {'시계 방향으로 구슬을 스와이프 해서\n노래 듣기 및 터치로 보내기'}
             </Text>
           </View>
         )}
-      </Animated.View>
+      </View>
 
       {(step === 'empty' || step === 'pick') && (
         <View style={styles.texts} pointerEvents="none">
@@ -729,7 +513,6 @@ const styles = StyleSheet.create({
   // 단어 고르기·음악 설명은 칸이 많아서 구슬을 줄이고 패널을 위로 올림 (탭바에 버튼이 안 가리게)
   orbSmall: { transform: [{ translateY: -ORB_SIZE * 0.17 }, { scale: 0.62 }] },
   panelSmall: { top: SMALL_PANEL_TOP },
-  panelPrompt: { position: 'absolute', left: 34, right: 34, top: SMALL_PANEL_TOP },
   btn: {
     alignSelf: 'stretch',
     marginHorizontal: 34,
@@ -738,9 +521,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnFull: { marginHorizontal: 0 },
   btnFirst: { marginTop: 22, marginBottom: 13 },
-  btnStack: { marginBottom: 13 },
   btnAccent: {
     backgroundColor: '#4F6A7A',
     boxShadow: '0px 0px 16px rgba(110,160,190,0.35), 4px 4px 10px rgba(8,8,8,0.8)',
@@ -752,54 +533,33 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.4 },
-  // 단어 칩
-  wordGroup: { alignSelf: 'stretch', marginTop: 14, marginHorizontal: 34 },
-  wordArea: {
-    marginBottom: 8,
-    fontFamily: Fonts.medium,
-    fontSize: 12,
-    color: Colors.textMuted,
-  },
-  wordChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    height: 36,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   chipOn: {
     backgroundColor: '#4F6A7A',
     boxShadow: '0px 0px 12px rgba(110,160,190,0.35), 3px 3px 8px rgba(8,8,8,0.8)',
   },
   chipLabel: { fontFamily: Fonts.medium, fontSize: 13, color: Colors.textActive },
-  prompt: {
-    height: Platform.OS === 'web' ? 160 : 125, // 웹은 글자가 커서 칸도 키움
-    marginBottom: 13,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 14,
-    backgroundColor: '#2A2A2A',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#3A3A3A',
-    fontFamily: Fonts.regular,
-    fontSize: Platform.OS === 'web' ? 16 : 13, // 웹은 16 미만이면 아이폰에서 확대됨
-    lineHeight: 19,
-    color: Colors.textPrimary,
-  },
-  track: {
-    marginTop: 22,
-    width: 187,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: '#4A5060',
-    overflow: 'hidden',
-  },
-  bar: { height: '100%', borderRadius: 3, backgroundColor: Colors.white },
   btnLabel: { fontFamily: Fonts.medium, fontSize: 14, color: Colors.textActive },
   note: { marginTop: 12, fontFamily: Fonts.regular, fontSize: 11, color: Colors.textMuted },
   playButton: { alignItems: 'center', marginTop: 12, marginBottom: 8 },
+  // 샘플 음악 칩 (2줄로)
+  soundGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    marginHorizontal: 24,
+  },
+  soundChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 38,
+    paddingHorizontal: 14,
+    borderRadius: 19,
+  },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  soundSec: { fontFamily: Fonts.regular, fontSize: 11, color: Colors.textMuted },
   headphones: { width: 22, height: 22 },
   sentButtons: {
     alignSelf: 'stretch',

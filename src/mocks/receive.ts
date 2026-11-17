@@ -1,9 +1,6 @@
 // 가짜 데이터 - 백엔드 연동 시 수신함 API로 교체
-import { Sounds } from '@/constants/assets';
-import type { AudioSource, ReceivedEmotion } from '@/types/emotion';
-
-// 시연용 AI 음악 플레이리스트 (서버는 30초 이하 3곡. 여기선 앱에 든 짧은 소리 3개)
-export const mockPlaylist: AudioSource[] = [Sounds.warm01, Sounds.clear01, Sounds.wave01];
+import { SampleSounds, Sounds } from '@/constants/assets';
+import type { ReceivedEmotion } from '@/types/emotion';
 
 // 수신함 (최신순). 반응 탭은 맨 앞 구슬을 보여줌
 export const mockInbox: ReceivedEmotion[] = [
@@ -13,8 +10,7 @@ export const mockInbox: ReceivedEmotion[] = [
     senderName: '익명',
     sentAtLabel: '방금',
     emotions: ['blue', 'purple'], // 섞은 구슬
-    words: ['지침', '생각이 많음'],
-    music: mockPlaylist,
+    music: [SampleSounds.blue],
     reacted: false,
     opened: false,
   },
@@ -24,8 +20,7 @@ export const mockInbox: ReceivedEmotion[] = [
     senderName: '서현',
     sentAtLabel: '10분 전',
     emotions: ['yellow'],
-    words: ['홀가분함'],
-    music: mockPlaylist,
+    music: [SampleSounds.yellow],
     reacted: false,
     opened: false,
   },
@@ -35,7 +30,6 @@ export const mockInbox: ReceivedEmotion[] = [
     senderName: '지환',
     sentAtLabel: '어제',
     emotions: ['purple'],
-    words: ['불안'],
     music: [Sounds.calm01],
     reacted: false,
     opened: true,
@@ -46,7 +40,6 @@ export const mockInbox: ReceivedEmotion[] = [
     senderName: '서현',
     sentAtLabel: '어제',
     emotions: ['orange'],
-    words: ['뿌듯함'],
     reacted: false,
     opened: true,
   },

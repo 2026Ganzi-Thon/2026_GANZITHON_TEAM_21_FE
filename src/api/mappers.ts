@@ -15,9 +15,8 @@ export const toKey = (c: Color) => c.toLowerCase() as EmotionKey;
 export const toColor = (k: EmotionKey) => k.toUpperCase() as Color;
 export const orbKeys = (orb?: Orb | null): EmotionKey[] =>
   orb?.emotions.length ? orb.emotions.map((e) => toKey(e.color)) : [];
-export const orbWords = (orb?: Orb | null): string[] => orb?.emotions.map((e) => e.word) ?? [];
 
-// ── 음악: 플레이리스트 트랙을 순서대로, 서버 음원은 토큰을 붙여 재생 ──
+// ── 음악: 플레이리스트 트랙을 순서대로 (샘플은 1곡), 서버 음원은 토큰을 붙여 재생 ──
 export const toTracks = (tracks: Pick<Track, 'order' | 'playbackUrl'>[]): AudioSource[] =>
   [...tracks]
     .sort((a, b) => a.order - b.order)
@@ -52,7 +51,6 @@ export function toReceived(r: Receipt, orb?: Orb | null): ReceivedEmotion {
     senderName: r.sender?.nickname ?? '익명',
     sentAtLabel: timeLabel(r.receivedAt),
     emotions: orbKeys(o).length ? orbKeys(o) : ['blue'], // 구슬 정보가 없으면 기본 색
-    words: orbWords(o),
     music: orbMusic(o),
     reacted: false,
     opened: !!r.openedAt,
@@ -104,7 +102,6 @@ export function toEntry(r: Record, kind: 'mine' | 'all'): RecordEntry {
   return {
     id: r.id,
     emotions: orbKeys(r.orb),
-    words: orbWords(r.orb),
     own: r.side === 'OWN',
     receivedId: r.side === 'RECEIVED' ? (r.receiptId ?? undefined) : undefined,
     senderName: counterpartName(r, kind),

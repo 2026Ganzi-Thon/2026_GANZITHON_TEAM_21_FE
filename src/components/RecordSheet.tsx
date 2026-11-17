@@ -180,10 +180,7 @@ export default function RecordSheet({ week, mode = 'all', onClose, onPressEntry 
             )}
             {entries.map((entry) => {
               const [first] = entry.emotions;
-              // 고른 단어가 있으면 단어, 없으면 감정 이름 (섞은 구슬은 둘 다)
-              const labels = entry.words?.length
-                ? entry.words.join(' + ')
-                : entry.emotions.map((k) => getEmotion(k).label).join(' + ');
+              const labels = entry.emotions.map((k) => getEmotion(k).label).join(' + ');
               const reactions = reactionsOf(entry);
               const extra = reactions.length - MAX_REACTIONS;
               // 받은 구슬은 눌러서 그때 수신 화면으로 재진입 (PRD 4-4)

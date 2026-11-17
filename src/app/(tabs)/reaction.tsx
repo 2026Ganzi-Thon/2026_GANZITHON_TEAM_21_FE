@@ -67,10 +67,7 @@ export default function InboxScreen() {
 
 function Row({ item, isNew = false }: { item: ReceivedEmotion; isNew?: boolean }) {
   const [first] = item.emotions;
-  // 보낸 사람이 고른 단어 (없으면 감정 이름)
-  const labels = item.words.length
-    ? item.words.join(' + ')
-    : item.emotions.map((k) => getEmotion(k).label).join(' + ');
+  const labels = item.emotions.map((k) => getEmotion(k).label).join(' + ');
   return (
     <Pressable
       onPress={() => router.navigate({ pathname: '/received', params: { id: item.id } })}

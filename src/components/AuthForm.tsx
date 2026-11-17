@@ -20,6 +20,7 @@ import { Colors, NeuCard } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
 import { toApiError } from '@/api/client';
 import { auth, LOGIN_ID_RULE, passwordBytes } from '@/api/emori';
+import { birthDateError, formatBirthInput } from '@/utils/birthDate';
 import { notify } from '@/utils/dialog';
 
 type Mode = 'login' | 'signup';
@@ -35,6 +36,7 @@ export default function AuthForm({ mode }: { mode: Mode }) {
   const [id, setId] = useState('');
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
+  const [birth, setBirth] = useState(''); // 'YYYY-MM-DD' (가입만)
   const [busy, setBusy] = useState(false);
   const [takenId, setTakenId] = useState<string | null>(null); // 중복 확인에서 이미 쓰는 아이디
 
@@ -56,8 +58,11 @@ export default function AuthForm({ mode }: { mode: Mode }) {
         : '비밀번호가 너무 길어요.'
       : undefined;
   const mismatch = isSignup && pw2.length > 0 && pw !== pw2;
+  const birthError = isSignup ? birthDateError(birth) : undefined;
   const ready =
-    loginId !== '' && pw !== '' && (!isSignup || (pw2 !== '' && !mismatch && !idError && !pwError));
+    loginId !== '' &&
+    pw !== '' &&
+    (!isSignup || (pw2 !== '' && !mismatch && !idError && !pwError && birth !== '' && !birthError));
 
   // 아이디 칸을 벗어나면 중복 확인 (GET /auth/login-id-availability)
   const checkId = () => {
@@ -73,7 +78,7 @@ export default function AuthForm({ mode }: { mode: Mode }) {
     setBusy(true);
     try {
       // 로그인 POST /auth/login, 회원가입 POST /auth/signup → 가입 후 바로 로그인
-      if (isSignup) await auth.signup(loginId, pw);
+      if (isSignup) await auth.signup(loginId, pw, birth);
       else await auth.login(loginId, pw);
       router.replace('/');
     } catch (e) {
@@ -159,6 +164,19 @@ export default function AuthForm({ mode }: { mode: Mode }) {
                 textContentType="newPassword"
                 returnKeyType="done"
                 error={mismatch ? '비밀번호가 일치하지 않아요.' : undefined}
+              />
+            )}
+            {/* 생년월일: 익명 기능(만 19세 이상) 확인용, 본인 입력 */}
+            {isSignup && (
+              <Field
+                label="생년월일"
+                value={birth}
+                onChangeText={(t) => setBirth(formatBirthInput(t))}
+                placeholder="8자리 숫자 (예: 20010519)"
+                keyboardType="number-pad"
+                maxLength={10}
+                returnKeyType="done"
+                error={birthError}
               />
             )}
           </View>

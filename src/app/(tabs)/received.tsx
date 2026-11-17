@@ -90,10 +90,10 @@ function ReceivedView({
   const hasMusic = !!received.music;
   const isAnonymous = received.route === 'anonymous';
   // 반응 기능은 익명으로 받은 구슬의 최초 수신 화면에서만 (서버 actions 에 REACT 가 있을 때)
-  // 보낸 사람이 고른 단어 (섞은 구슬은 두 단어). 단어 정보가 없으면 감정 이름
-  const words = received.words.length
-    ? received.words.join(' + ')
-    : received.emotions.map((k) => getEmotion(k).label).join(' + ');
+  // 섞은 구슬은 두 감정 이름, 하나면 그 색의 감정 단어
+  const words = second
+    ? received.emotions.map((k) => getEmotion(k).label).join(' + ')
+    : `${emotion.words.join(', ')}…`;
 
   const [answered, setAnswered] = useState(received.reacted || !canReact);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -259,7 +259,6 @@ function ReceivedView({
       <OrbDetailSheet
         visible={detailOpen}
         emotions={received.emotions}
-        words={received.words}
         senderName={received.senderName}
         timeLabel={received.sentAtLabel}
         hasMusic={hasMusic}

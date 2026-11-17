@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """
 EmOri 가짜 백엔드 (FE 연동 테스트용) - 실제 서버가 아니에요!
-백엔드 API 명세 v0.3 (지섭님 feat/stage3-inbox-records-cancel, 11/16)의 요청/응답 모양대로
-메모리에서만 동작해요. 실제 서버를 못 띄울 때 FE 흐름을 끝까지 눌러보는 용도.
+백엔드 API 명세 v0.3 + 기획 결정(11/16) 반영 제안 모양대로 메모리에서만 동작해요.
+  - 감정은 색 단위 POST /orbs {colors, soundId?} → 색에 매핑된 단어 4개를 그대로 저장
+  - 음악은 미리 만든 15초 샘플 (GET /catalog/sounds), AI 생성은 MVP 제외
+  - 가입 때 birthDate, 기존 가입자는 PUT /me/birth-date
+실제 서버를 못 띄울 때 FE 흐름을 끝까지 눌러보는 용도.
 
 실행:  python3 scripts/fake-server.py            (http://0.0.0.0:8200)
 앱:    .env 에 EXPO_PUBLIC_API_URL=http://<맥 IP>:8200/api/v1  → npx expo start
 
 - 목록은 일부러 한 페이지 2개씩만 줘요 (FE 가 cursor 를 끝까지 읽는지 확인)
-- AI 음악: 생성 요청 후 2초마다 1곡씩 완성. 설명에 'fail' 이 있으면 2번째 곡이 한 번 실패
-- 설명에 '503' 이 있으면 실제 운영 서버처럼 503 GENERATION_UNAVAILABLE
 - 미리 들어 있는 데이터: 친구 jiseop / eunjae, 받은 구슬 2개(친구 1, 익명 1), 친구 요청 1개
+- eunjae 계정은 생년월일이 없는 기존 가입자 (익명 켤 때 입력 팝업 확인용)
 """
 import json
 import os
 import sys
-import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -31,19 +32,22 @@ COLORS = {
     "BLUE": ("가라앉음", ["가라앉음", "외로움", "무기력", "지침"]),
     "GREEN": ("안정·회복", ["편안함", "안정", "회복 중", "평온"]),
 }
-CATALOG = {
-    f"{c.lower()}_{i + 1:02d}": {"id": f"{c.lower()}_{i + 1:02d}", "color": c, "area": a, "word": w}
-    for c, (a, ws) in COLORS.items()
-    for i, w in enumerate(ws)
-}
+EMOTION = {c: {"id": c.lower(), "color": c, "area": a, "words": ws} for c, (a, ws) in COLORS.items()}
+SOUNDS = [
+    {"id": f"sample_{c}", "title": t, "color": c.upper(), "durationMs": 15000,
+     "playbackUrl": f"/api/v1/sounds/sample_{c}/audio"}
+    for c, t in (("yellow", "햇살 산책"), ("orange", "설레는 걸음"), ("pink", "포근한 오후"),
+                 ("red", "가라앉히는 숨"), ("purple", "창밖의 빗소리"), ("blue", "잔잔한 파도"),
+                 ("green", "숲속 시냇물"))
+]
 REACTIONS = [
     {"code": "HEART", "label": "마음 전하기", "emoji": "❤️"},
     {"code": "HUG", "label": "안아주기", "emoji": "🫂"},
     {"code": "CHEER", "label": "응원하기", "emoji": "🙌"},
 ]
 REASONS = {"INAPPROPRIATE", "UNWANTED_REPEATED", "HARASSMENT_THREAT", "OTHER"}
-CARE_IDS = {"purple_01", "purple_02", "blue_02", "blue_03", "blue_04"}
-WAV = os.path.join(os.path.dirname(__file__), "..", "assets", "sounds", "wave-01.wav")
+CARE_WORDS = {"불안", "막막함", "외로움", "무기력", "지침"}
+SOUND_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "sounds")
 
 
 def iso(dt):
@@ -60,17 +64,17 @@ def nid(prefix):
 
 # ── 메모리 DB ──
 users = {
-    "u_jiseop": {"id": "u_jiseop", "loginId": "jiseop", "password": "password1", "nickname": "지섭"},
-    "u_eunjae": {"id": "u_eunjae", "loginId": "eunjae", "password": "password1", "nickname": "은재"},
+    "u_jiseop": {"id": "u_jiseop", "loginId": "jiseop", "password": "password1", "nickname": "지섭",
+                 "birthDate": "2001-03-02"},
+    "u_eunjae": {"id": "u_eunjae", "loginId": "eunjae", "password": "password1", "nickname": "은재",
+                 "birthDate": None},
 }
 tokens, refresh_tokens = {}, {}
 friendships = set()
 requests_ = {}
 records = {}  # uid -> [Record]
 receipts = {}  # rid -> {...}
-orbs = {}  # orbId -> {"orb", "owner", "dispatched", "generation"}
-generations = {}
-tracks = {}  # trackId -> generation id
+orbs = {}  # orbId -> {"orb", "owner", "dispatched"}
 dispatches = {}  # id -> {"dispatch", "owner", "targets": {tid: receiptId}}
 settings, care_ack, blocks = {}, {}, set()
 idem = {}  # (uid, method, path, key) -> (status, body)
@@ -80,15 +84,15 @@ def summary(uid):
     return {"id": uid, "nickname": users[uid]["nickname"]}
 
 
-def make_orb(owner, ids, delta_min=0, playlist=None):
+def make_orb(owner, colors, delta_min=0, playlist=None):
     o = {
         "id": nid("o"),
-        "kind": "MIXED" if len(ids) == 2 else "SINGLE",
-        "emotions": [CATALOG[i] for i in ids],
+        "kind": "MIXED" if len(colors) == 2 else "SINGLE",
+        "emotions": [EMOTION[c] for c in colors],
         "playlist": playlist,
         "createdAt": now_iso(delta_min),
     }
-    orbs[o["id"]] = {"orb": o, "owner": owner, "dispatched": False, "generation": None}
+    orbs[o["id"]] = {"orb": o, "owner": owner, "dispatched": False}
     return o
 
 
@@ -114,20 +118,22 @@ def deliver(o, sender_uid, to_uid, route, delta_min=0):
     return rid
 
 
-def demo_playlist():
+def sound_playlist(sound_id):
+    snd = next(x for x in SOUNDS if x["id"] == sound_id)
     return {"id": nid("p"), "status": "READY", "tracks": [
-        {"id": "trk_demo", "order": 1, "title": "Test fixture", "durationMs": 12000,
-         "playbackUrl": "/api/v1/asmr-tracks/trk_demo/audio"}]}
+        {"id": snd["id"], "order": 1, "title": snd["title"], "durationMs": snd["durationMs"],
+         "playbackUrl": snd["playbackUrl"]}]}
 
 
 def seed_for(uid):
     for f in ("u_jiseop", "u_eunjae"):
         friendships.add(frozenset({uid, f}))
-    deliver(make_orb("u_jiseop", ["yellow_03"], 10, demo_playlist()), "u_jiseop", uid, "FRIEND", 10)
-    deliver(make_orb("u_eunjae", ["blue_04", "purple_04"], 1, demo_playlist()), "u_eunjae", uid,
+    deliver(make_orb("u_jiseop", ["YELLOW"], 10, sound_playlist("sample_yellow")), "u_jiseop", uid,
+            "FRIEND", 10)
+    deliver(make_orb("u_eunjae", ["BLUE", "PURPLE"], 1, sound_playlist("sample_blue")), "u_eunjae", uid,
             "ANONYMOUS", 1)
-    for ids, days in ((["blue_02"], 1), (["purple_01"], 2), (["blue_03"], 3), (["blue_04"], 4),
-                      (["green_01"], 9)):
+    for ids, days in ((["BLUE"], 1), (["PURPLE"], 2), (["BLUE"], 3), (["BLUE", "GREEN"], 4),
+                      (["GREEN"], 9)):
         add_record(uid, "OWN", make_orb(uid, ids, days * 1440), "SELF", days * 1440)
     settings[uid] = {"anonymousEnabled": False, "pushEnabled": True,
                      "rest": {"mode": "OFF", "startsAt": None, "endsAt": None, "active": False}}
@@ -136,9 +142,25 @@ def seed_for(uid):
                       "status": "PENDING", "createdAt": now_iso(30)}
 
 
+def adult_status(birth):
+    if not birth:
+        return "UNKNOWN"
+    y, m, d = map(int, birth.split("-"))
+    today = datetime.now(timezone(timedelta(hours=9))).date()
+    age = today.year - y - ((today.month, today.day) < (m, d))
+    return "VERIFIED_19_PLUS" if age >= 19 else "INELIGIBLE"
+
+
+def valid_birth(b):
+    try:
+        return bool(b) and datetime.strptime(b, "%Y-%m-%d").date() <= datetime.now().date()
+    except (TypeError, ValueError):
+        return False
+
+
 def me_json(u):
     return {"id": u["id"], "loginId": u["loginId"], "nickname": u["nickname"],
-            "friendCode": u["loginId"], "adultStatus": "VERIFIED_19_PLUS"}
+            "friendCode": u["loginId"], "adultStatus": adult_status(u.get("birthDate"))}
 
 
 def session_for(uid):
@@ -162,40 +184,6 @@ def page(items, q):
 def only(b, allowed):
     extra = set(b) - set(allowed)
     return err("INVALID_INPUT", f"알 수 없는 필드: {sorted(extra)}", 422) if extra else None
-
-
-# ── AI 음악 시뮬레이션 ──
-def gen_json(g):
-    elapsed = time.time() - g["startedAt"]
-    out = []
-    for t in g["tracks"]:
-        if t["status"] in ("QUEUED", "PROCESSING"):
-            if elapsed >= 2 * t["order"]:
-                if g["failOnce"] and t["order"] == 2 and not t["retried"]:
-                    t["status"] = "FAILED"
-                else:
-                    t["status"] = "READY"
-                    t["title"] = f"Test fixture {t['order']}"
-                    t["durationMs"] = 12000
-                    t["playbackUrl"] = f"/api/v1/asmr-tracks/{t['id']}/audio"
-            else:
-                t["status"] = "PROCESSING"
-        out.append({k: v for k, v in t.items() if k != "retried"} | {"errorCode": "GENERATION_FAILED" if t["status"] == "FAILED" else None})
-    st = [t["status"] for t in g["tracks"]]
-    if all(s == "READY" for s in st):
-        status = "READY"
-    elif any(s in ("QUEUED", "PROCESSING") for s in st):
-        status = "PROCESSING"
-    elif all(s == "FAILED" for s in st):
-        status = "FAILED"
-    else:
-        status = "PARTIAL_FAILED"
-    g["status"] = status
-    if status == "READY":
-        orbs[g["orbId"]]["orb"]["playlist"] = {"id": nid("p"), "status": "READY", "tracks": [
-            {k: t[k] for k in ("id", "order", "title", "durationMs", "playbackUrl")} for t in g["tracks"]]}
-    return {"id": g["id"], "orbId": g["orbId"], "status": status, "trackCount": 3, "tracks": out,
-            "createdAt": g["createdAt"], "updatedAt": now_iso()}
 
 
 def dispatch_json(d):
@@ -230,7 +218,7 @@ def care_json(uid):
     for r in records.get(uid, []):
         if r["side"] != "OWN" or r["_hidden"]:
             continue
-        if any(e["id"] in CARE_IDS for e in r["orb"]["emotions"]):
+        if any(w in CARE_WORDS for e in r["orb"]["emotions"] for w in e["words"]):
             d = datetime.fromisoformat(r["recordedAt"].replace("Z", "+00:00")).astimezone(
                 timezone(timedelta(hours=9))).date()
             days.add((today - d).days)
@@ -264,8 +252,10 @@ def route(m, p, q, b, uid, key):
         lid = q.get("loginId", "").lower()
         return 200, {"loginId": lid, "available": not any(u["loginId"] == lid for u in users.values())}
     if m == "POST" and p == "/auth/signup":
-        if (e := only(b, ["loginId", "password", "nickname"])):
+        if (e := only(b, ["loginId", "password", "nickname", "birthDate"])):
             return e
+        if not valid_birth(b.get("birthDate")):
+            return err("INVALID_INPUT", "생년월일을 확인해주세요.", 422, field="birthDate")
         lid = (b.get("loginId") or "").strip().lower()
         pw = b.get("password") or ""
         import re
@@ -273,7 +263,8 @@ def route(m, p, q, b, uid, key):
             return err("INVALID_INPUT", "아이디 또는 비밀번호 형식을 확인해주세요.", 422)
         if any(u["loginId"] == lid for u in users.values()):
             return err("LOGIN_ID_IN_USE", "이미 사용 중인 아이디예요.", 409)
-        new = {"id": nid("u"), "loginId": lid, "password": pw, "nickname": (b.get("nickname") or lid).strip()}
+        new = {"id": nid("u"), "loginId": lid, "password": pw, "nickname": (b.get("nickname") or lid).strip(),
+               "birthDate": b["birthDate"]}
         users[new["id"]] = new
         seed_for(new["id"])
         return 201, {"user": me_json(new), "session": session_for(new["id"])}
@@ -297,57 +288,36 @@ def route(m, p, q, b, uid, key):
         return 204, None
     if m == "GET" and p == "/me":
         return 200, me_json(u)
+    if m == "PUT" and p == "/me/birth-date":
+        if not valid_birth(b.get("birthDate")):
+            return err("INVALID_INPUT", "생년월일을 확인해주세요.", 422, field="birthDate")
+        u["birthDate"] = b["birthDate"]
+        return 200, me_json(u)
     if m == "PUT" and p == "/me/profile":
         u["nickname"] = b["nickname"].strip()
         return 200, me_json(u)
 
     # ── 카탈로그 ──
     if m == "GET" and p == "/catalog/emotions":
-        return 200, {"version": "1", "items": list(CATALOG.values())}
+        return 200, {"version": "2", "items": list(EMOTION.values())}
     if m == "GET" and p == "/catalog/reactions":
         return 200, {"items": REACTIONS}
+    if m == "GET" and p == "/catalog/sounds":
+        return 200, {"items": SOUNDS}
+    if m == "GET" and len(seg) == 3 and seg[0] == "sounds" and seg[2] == "audio":
+        return "AUDIO", seg[1].removeprefix("sample_")
 
-    # ── 초안 구슬 ──
+    # ── 초안 구슬: 색 1~2개 (+ 샘플 음악) ──
     if m == "POST" and p == "/orbs":
-        if (e := only(b, ["emotionIds"])):
+        if (e := only(b, ["colors", "soundId"])):
             return e
-        ids = b.get("emotionIds") or []
-        colors = [CATALOG[i]["color"] for i in ids if i in CATALOG]
-        if not 1 <= len(ids) <= 2 or len(colors) != len(ids) or len(set(colors)) != len(colors):
-            return err("INVALID_INPUT", "서로 다른 색의 단어 1~2개를 골라주세요.", 422)
-        return 201, {"orb": make_orb(uid, ids), "recordId": None}
-    if m == "POST" and len(seg) == 3 and seg[0] == "orbs" and seg[2] == "asmr-generations":
-        o = orbs[seg[1]]
-        if o["owner"] != uid or o["dispatched"]:
-            return err("NOT_FOUND", "찾을 수 없어요.", 404)
-        if "503" in (b.get("description") or ""):
-            return err("GENERATION_UNAVAILABLE", "지금은 음악을 만들 수 없어요.", 503)
-        if o["generation"]:
-            return err("GENERATION_EXISTS", "이미 음악을 만들고 있어요.", 409)
-        gid = nid("g")
-        g = {"id": gid, "orbId": seg[1], "startedAt": time.time(), "createdAt": now_iso(),
-             "failOnce": "fail" in (b.get("description") or ""), "status": "QUEUED",
-             "tracks": [{"id": nid("trk"), "order": i, "status": "QUEUED", "title": None,
-                         "durationMs": None, "playbackUrl": None, "retried": False} for i in (1, 2, 3)]}
-        generations[gid], o["generation"] = g, gid
-        for t in g["tracks"]:
-            tracks[t["id"]] = gid
-        return 202, gen_json(g)
-    if m == "GET" and len(seg) == 2 and seg[0] == "asmr-generations":
-        return 200, gen_json(generations[seg[1]])
-    if m == "POST" and len(seg) == 3 and seg[0] == "asmr-generations" and seg[2] == "retry":
-        g = generations[seg[1]]
-        for t in g["tracks"]:
-            if t["status"] == "FAILED":
-                t["status"], t["retried"] = "QUEUED", True
-        g["startedAt"] = time.time() - 2  # 다시 2초 뒤 완성
-        return 202, gen_json(g)
-    if m == "DELETE" and len(seg) == 3 and seg[0] == "orbs" and seg[2] == "playlist":
-        o = orbs[seg[1]]
-        o["orb"]["playlist"], o["generation"] = None, None
-        return 204, None
-    if m == "GET" and len(seg) == 3 and seg[0] == "asmr-tracks" and seg[2] == "audio":
-        return "AUDIO", None
+        colors = b.get("colors") or []
+        if not 1 <= len(colors) <= 2 or any(c not in EMOTION for c in colors) or len(set(colors)) != len(colors):
+            return err("INVALID_INPUT", "서로 다른 색 1~2개를 골라주세요.", 422)
+        sid = b.get("soundId")
+        if sid is not None and not any(x["id"] == sid for x in SOUNDS):
+            return err("INVALID_INPUT", "없는 음악이에요.", 422, field="soundId")
+        return 201, {"orb": make_orb(uid, colors, playlist=sound_playlist(sid) if sid else None), "recordId": None}
 
     # ── 보내기 ──
     if m == "POST" and len(seg) == 3 and seg[0] == "orbs" and seg[2] == "dispatches":
@@ -356,8 +326,6 @@ def route(m, p, q, b, uid, key):
             return err("NOT_FOUND", "찾을 수 없어요.", 404)
         if o["dispatched"]:
             return err("ALREADY_DISPATCHED", "이미 보낸 구슬이에요.", 409)
-        if o["generation"] and generations[o["generation"]]["status"] != "READY":
-            return err("PLAYLIST_NOT_READY", "음악이 아직 준비되지 않았어요.", 409)
         r = b.get("route")
         if r == "FRIEND":
             if (e := only(b, ["route", "friendId"])) or not isinstance(b.get("friendId"), str):
@@ -368,6 +336,8 @@ def route(m, p, q, b, uid, key):
         elif r in ("SELF", "ANONYMOUS"):
             if (e := only(b, ["route"])):
                 return e
+            if r == "ANONYMOUS" and adult_status(u.get("birthDate")) != "VERIFIED_19_PLUS":
+                return err("AGE_REQUIRED", "만 19세 이상만 쓸 수 있어요.", 403)
             if r == "ANONYMOUS" and not settings[uid]["anonymousEnabled"]:
                 return err("ANONYMOUS_DISABLED", "익명 설정을 켜주세요.", 403)
             to = [] if r == "SELF" else [x for x in users if x != uid and (uid, x) not in blocks
@@ -511,6 +481,8 @@ def route(m, p, q, b, uid, key):
     if m == "GET" and p == "/me/settings":
         return 200, settings[uid]
     if m == "PATCH" and p == "/me/settings":
+        if b.get("anonymousEnabled") and adult_status(u.get("birthDate")) != "VERIFIED_19_PLUS":
+            return err("AGE_REQUIRED", "만 19세 이상만 쓸 수 있어요.", 403)
         settings[uid].update({k: v for k, v in b.items() if k in ("anonymousEnabled", "pushEnabled")})
         return 200, settings[uid]
     if m == "PUT" and p == "/me/rest":
@@ -570,9 +542,9 @@ class H(BaseHTTPRequestHandler):
         except (KeyError, StopIteration):
             status, res = err("NOT_FOUND", "찾을 수 없어요.", 404)
         if status == "AUDIO":
-            print(f"{method} {self.path} → 200 audio/wav")
-            with open(WAV, "rb") as f:
-                return self._send(200, raw=f.read(), ctype="audio/wav")
+            print(f"{method} {self.path} → 200 audio/mp4")
+            with open(os.path.join(SOUND_DIR, f"sample-{res}.m4a"), "rb") as f:
+                return self._send(200, raw=f.read(), ctype="audio/mp4")
         if key and isinstance(status, int) and status < 300:
             idem[ik] = (status, res)
         print(f"{method} {self.path} → {status}" + (f" {res['error']['code']}" if isinstance(res, dict) and 'error' in res else ""))

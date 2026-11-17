@@ -1,26 +1,28 @@
-// EmOri API 호출 모음 (백엔드 API 명세 v0.3 + PRD v1.4)
+// EmOri API 호출 모음 (백엔드 API 명세 v0.3 + 기획 결정 11/16 + PRD v1.4)
 // - 화면은 여기 함수만 부름. 경로·필드가 바뀌면 이 파일만 고치면 됨
 // - USE_MOCK(서버 주소 없음)이면 가짜 데이터로 동작 (부스 시연용 안전장치)
 import { ApiError, http, idem, toApiError, USE_MOCK } from '@/api/client';
-import { toReceived, toServerRoute, toTracks, toWeeks, topColor } from '@/api/mappers';
+import {
+  toColor,
+  toKey,
+  toReceived,
+  toServerRoute,
+  toTracks,
+  toWeeks,
+  topColor,
+} from '@/api/mappers';
 import type * as S from '@/api/types';
-import { emotionId } from '@/constants/emotions';
+import { SampleSounds } from '@/constants/assets';
 import { mockFriends, type Friend } from '@/mocks/social';
 import { mockMe } from '@/mocks/me';
 import { mockMineWeeks, mockRecordStartLabel, mockWeeks } from '@/mocks/record';
-import {
-  findReceived,
-  mockInbox,
-  mockLatestReceived,
-  mockPlaylist,
-  REACTIONS,
-} from '@/mocks/receive';
+import { findReceived, mockInbox, mockLatestReceived, REACTIONS } from '@/mocks/receive';
 import { mockRequests, type FriendRequest } from '@/mocks/friendAdd';
+import { mockSounds, type SoundItem } from '@/mocks/sounds';
 import { signIn, signOut } from '@/stores/authStore';
 import type {
   AudioSource,
   EmotionKey,
-  EmotionPick,
   ReceivedEmotion,
   SendRoute,
   WeekRecord,
@@ -55,9 +57,14 @@ export const auth = {
     await signIn(accessToken, refreshToken, expiresIn);
   },
   // 가입: 닉네임을 안 보내면 서버가 아이디로 채움
-  async signup(loginId: string, password: string) {
+  // 생년월일 'YYYY-MM-DD' → 서버가 만 19세 이상인지 판정 (기획 결정 11/16, 본인 입력)
+  async signup(loginId: string, password: string, birthDate: string) {
     if (USE_MOCK) return signIn('mock-token');
-    const { data } = await http.post<{ session: S.Session }>('/auth/signup', { loginId, password });
+    const { data } = await http.post<{ session: S.Session }>('/auth/signup', {
+      loginId,
+      password,
+      birthDate,
+    });
     const { accessToken, refreshToken, expiresIn } = data.session;
     await signIn(accessToken, refreshToken, expiresIn);
   },
@@ -76,22 +83,55 @@ export const auth = {
 };
 
 // ───────────────── 내 정보 (§2) ─────────────────
-export type MyProfile = { name: string; friendCode: string; adult: boolean };
+export type MyProfile = {
+  name: string;
+  friendCode: string;
+  adult: boolean; // 만 19세 이상 확인됨 → 익명 가능
+  needsBirthDate?: boolean;
+};
+let mockBirthDate: string | null = '2000-01-01';
 export const me = {
   async get(): Promise<MyProfile> {
-    if (USE_MOCK) return { name: mockMe.name, friendCode: mockMe.id, adult: true };
+    if (USE_MOCK)
+      return {
+        name: mockMe.name,
+        friendCode: mockMe.id,
+        adult: !!mockBirthDate && isAdult(mockBirthDate),
+        needsBirthDate: !mockBirthDate,
+      };
     const { data } = await http.get<S.Me>('/me');
     return {
       name: data.nickname || data.loginId,
       friendCode: data.friendCode,
       adult: data.adultStatus === 'VERIFIED_19_PLUS',
+      needsBirthDate: data.adultStatus === 'UNKNOWN', // 생년월일을 아직 안 받은 기존 가입자
     };
   },
   async rename(nickname: string) {
     if (USE_MOCK) return;
     await http.put('/me/profile', { nickname });
   },
+  // 기존 가입자: 익명을 처음 쓸 때 생년월일 입력 → 만 19세 이상이면 true
+  async setBirthDate(birthDate: string): Promise<boolean> {
+    if (USE_MOCK) {
+      mockBirthDate = birthDate;
+      return isAdult(birthDate);
+    }
+    const { data } = await http.put<S.Me>('/me/birth-date', { birthDate });
+    return data.adultStatus === 'VERIFIED_19_PLUS';
+  },
 };
+
+// 만 나이 19세 이상인지 (한국 날짜 기준). 판정은 서버가 하고, 화면 안내용으로만 씀
+export function isAdult(birthDate: string, today = new Date()) {
+  const [y, m, d] = birthDate.split('-').map(Number);
+  const kst = new Date(today.getTime() + 9 * 3600000);
+  const ty = kst.getUTCFullYear();
+  const tm = kst.getUTCMonth() + 1;
+  const td = kst.getUTCDate();
+  const age = ty - y - (tm < m || (tm === m && td < d) ? 1 : 0);
+  return age >= 19;
+}
 // QR 에 담는 친구 추가 주소 (스캔하면 friendCode 로 친구 요청)
 export const friendLink = (friendCode: string) => `ganzithon21://friend/${friendCode}`;
 
@@ -105,87 +145,37 @@ export const catalog = {
   },
 };
 
-// ───────────────── 구슬 만들기 (§5) ─────────────────
-// 고른 단어(색마다 1개, 최대 2색) → 초안 구슬. 아직 기록·전송 전
+// ───────────────── 샘플 음악 ─────────────────
+// 기획 결정(11/16): 15초 이내 무보컬, 부스 시연은 미리 만든 샘플 (AI 생성은 나중에)
+export const catalogSounds = {
+  async list(): Promise<SoundItem[]> {
+    if (USE_MOCK) return wait(mockSounds);
+    const { data } = await http.get<{ items: S.Sound[] }>('/catalog/sounds');
+    return data.items.map((x) => ({
+      id: x.id,
+      title: x.title,
+      color: x.color ? toKey(x.color) : null,
+      seconds: Math.round(x.durationMs / 1000),
+      source: toTracks([{ order: 1, playbackUrl: x.playbackUrl }])[0],
+    }));
+  },
+};
+// 목업에서 보낸 구슬의 음악 (색 기준 샘플)
+export const sampleFor = (key: EmotionKey): AudioSource => SampleSounds[key];
+
+// ───────────────── 구슬 만들기 ─────────────────
+// 고른 색 1~2개 (+ 샘플 음악) → 초안 구슬. 단어는 서버가 색에 매핑된 단어를 함께 저장
 // key: 같은 동작을 다시 보낼 때(네트워크 재시도)만 같은 키
-export async function createOrb(picks: EmotionPick[], key?: string): Promise<string> {
+export async function createOrb(
+  colors: EmotionKey[],
+  soundId: string | null,
+  key?: string,
+): Promise<string> {
   if (USE_MOCK) return wait(`mock_${Date.now()}`, 300);
-  const { data } = await http.post<{ orb: S.Orb }>(
-    '/orbs',
-    { emotionIds: picks.map((p) => emotionId(p.key, p.word)) },
-    idem(key),
-  );
+  const body = soundId ? { colors: colors.map(toColor), soundId } : { colors: colors.map(toColor) };
+  const { data } = await http.post<{ orb: S.Orb }>('/orbs', body, idem(key));
   return data.orb.id;
 }
-
-// ───────────────── AI 음악 (§6) ─────────────────
-// 생성 요청 → 약 3초마다 상태 확인 → READY 면 3곡 재생 가능
-// 실패한 곡만 retry, 음악 없이 보내려면 detach
-export type MusicJob = {
-  id: string;
-  status: S.GenerationStatus;
-  done: number; // 완성된 곡 수
-  total: number; // 3
-  tracks: AudioSource[]; // 완성된 곡 (순서대로)
-};
-const toJob = (g: S.Generation): MusicJob => {
-  const ready = g.tracks.filter((t) => t.status === 'READY' && t.playbackUrl);
-  return {
-    id: g.id,
-    status: g.status,
-    done: ready.length,
-    total: g.trackCount || g.tracks.length || 3,
-    tracks: toTracks(ready.map((t) => ({ order: t.order, playbackUrl: t.playbackUrl! }))),
-  };
-};
-// 목업: 생성 시작 후 약 6초 뒤 완성
-const mockJobs = new Map<string, number>();
-const mockJob = (id: string): MusicJob => {
-  const elapsed = Date.now() - (mockJobs.get(id) ?? Date.now());
-  const done = Math.min(3, Math.floor(elapsed / 2000));
-  return {
-    id,
-    status: done >= 3 ? 'READY' : 'PROCESSING',
-    done,
-    total: 3,
-    tracks: mockPlaylist.slice(0, done),
-  };
-};
-
-export const music = {
-  async start(orbId: string, description: string, key?: string): Promise<MusicJob> {
-    if (USE_MOCK) {
-      const id = `job_${orbId}`;
-      mockJobs.set(id, Date.now());
-      return wait(mockJob(id), 300);
-    }
-    const text = description.trim();
-    const { data } = await http.post<S.Generation>(
-      `/orbs/${orbId}/asmr-generations`,
-      text ? { description: text } : {},
-      idem(key),
-    );
-    return toJob(data);
-  },
-  async status(jobId: string): Promise<MusicJob> {
-    if (USE_MOCK) return wait(mockJob(jobId));
-    return toJob((await http.get<S.Generation>(`/asmr-generations/${jobId}`)).data);
-  },
-  // 실패한 곡만 다시 만들기 (성공한 곡은 그대로)
-  async retry(jobId: string, key?: string): Promise<MusicJob> {
-    if (USE_MOCK) return wait(mockJob(jobId));
-    return toJob(
-      (await http.post<S.Generation>(`/asmr-generations/${jobId}/retry`, {}, idem(key))).data,
-    );
-  },
-  // 음악 떼기 → 음악 없이 보내기 가능
-  async detach(orbId: string) {
-    if (USE_MOCK) return;
-    await http.delete(`/orbs/${orbId}/playlist`);
-  },
-};
-export const isMusicDone = (s: S.GenerationStatus) =>
-  s === 'READY' || s === 'FAILED' || s === 'PARTIAL_FAILED';
 
 // ───────────────── 보내기·취소 (§7) ─────────────────
 // 친구는 한 번에 1명 (friendId). 익명은 서버가 1~3명 매칭

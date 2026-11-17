@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 import {
@@ -11,11 +12,17 @@ import {
 // 백엔드 주소: .env 의 EXPO_PUBLIC_API_URL
 // 예) http://192.168.0.10:8080 또는 http://192.168.0.10:8080/api/v1 (둘 다 됨)
 // 비워두면 목업 모드 → 서버 없이 지금처럼 가짜 데이터로 동작 (부스 시연용 안전장치)
-export const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '').replace(
-  /\/api\/v1$/,
-  '',
-);
-export const USE_MOCK = !API_URL;
+// 앱 안 숨은 메뉴(설정 '도움과 소리' 제목 길게 누르기)에서 재빌드 없이 바꿀 수 있음
+const normalize = (url?: string | null) =>
+  url
+    ?.trim()
+    .replace(/\/+$/, '')
+    .replace(/\/api\/v1$/, '') || undefined;
+const ENV_URL = normalize(process.env.EXPO_PUBLIC_API_URL);
+const SERVER_KEY = 'serverUrlOverride'; // '' = 목업 강제, 없음 = .env 기본값
+
+export let API_URL = ENV_URL;
+export let USE_MOCK = !API_URL;
 
 // 서버가 주는 '/api/v1/...' 경로를 전체 주소로 (음원 재생 주소 등)
 export const absoluteUrl = (path: string) =>
@@ -28,6 +35,31 @@ export const http = axios.create({
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 });
+
+function applyServerUrl(url: string | undefined) {
+  API_URL = url;
+  USE_MOCK = !url;
+  http.defaults.baseURL = `${url ?? ''}/api/v1`;
+}
+
+// 앱 켤 때 한 번: 숨은 메뉴에서 바꾼 주소가 있으면 적용
+export async function loadServerUrl() {
+  const saved = await AsyncStorage.getItem(SERVER_KEY).catch(() => null);
+  if (saved !== null) applyServerUrl(normalize(saved));
+}
+
+// 숨은 메뉴: 서버 주소 바꾸기. null = .env 기본값, '' = 목업
+// 다른 서버의 토큰은 못 쓰니까 바꾸면 로그아웃됨 (호출하는 쪽에서 signOut)
+export async function setServerUrl(url: string | null) {
+  if (url === null) {
+    await AsyncStorage.removeItem(SERVER_KEY);
+    applyServerUrl(ENV_URL);
+  } else {
+    await AsyncStorage.setItem(SERVER_KEY, url.trim());
+    applyServerUrl(normalize(url));
+  }
+}
+export const defaultServerUrl = () => ENV_URL;
 
 // 요청마다 저장된 토큰을 붙임
 http.interceptors.request.use(async (config) => {
