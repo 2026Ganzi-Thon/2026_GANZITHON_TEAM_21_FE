@@ -58,14 +58,15 @@ export const auth = {
   },
   // 가입: 닉네임을 안 보내면 서버가 아이디로 채움
   // 생년월일 'YYYY-MM-DD' → 서버가 만 19세 이상인지 판정 (기획 결정 11/16, 본인 입력)
-  // ※ 서버(v0.5)는 아직 가입에 birthDate 를 안 받음 (모르는 필드는 422) → 가입 후 따로 저장
-  //   PUT /me/birth-date 가 생기면 그대로 동작, 없으면 무시 (익명 켤 때 다시 물어봄)
+  // 가입만 하고 로그인은 하지 않음 → 가입 후 로그인 화면에서 다시 로그인 (11/18 요청)
+  // 서버는 가입 응답에 세션을 주는데, 그 토큰은 생년월일 저장에만 잠깐 쓰고 바로 로그아웃
+  // (서버 v0.5: 가입 본문에 birthDate 를 넣으면 422 → PUT /me/birth-date 로 따로)
   async signup(loginId: string, password: string, birthDate: string) {
-    if (USE_MOCK) return signIn('mock-token');
+    if (USE_MOCK) return;
     const { data } = await http.post<{ session: S.Session }>('/auth/signup', { loginId, password });
-    const { accessToken, refreshToken, expiresIn } = data.session;
-    await signIn(accessToken, refreshToken, expiresIn);
-    await http.put('/me/birth-date', { birthDate }).catch(() => {});
+    const auth = { headers: { Authorization: `Bearer ${data.session.accessToken}` } };
+    await http.put('/me/birth-date', { birthDate }, auth).catch(() => {}); // 실패해도 익명 켤 때 다시 물어봄
+    await http.post('/auth/logout', {}, auth).catch(() => {});
   },
   // 아이디 중복 확인 (GET /auth/login-id-availability)
   async available(loginId: string): Promise<boolean> {

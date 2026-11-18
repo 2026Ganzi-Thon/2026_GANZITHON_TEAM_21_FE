@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -33,7 +33,9 @@ export default function AuthForm({ mode }: { mode: Mode }) {
   const dy = insets.top - 46; // 피그마 상태바(46pt) 기준 → 실제 기기 보정
   const isSignup = mode === 'signup';
 
-  const [id, setId] = useState('');
+  // 가입 직후 로그인 화면으로 오면 가입한 아이디를 채워둠
+  const { id: presetId } = useLocalSearchParams<{ id?: string }>();
+  const [id, setId] = useState(presetId ?? '');
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [birth, setBirth] = useState(''); // 'YYYY-MM-DD' (가입만)
@@ -77,9 +79,14 @@ export default function AuthForm({ mode }: { mode: Mode }) {
     if (busy) return;
     setBusy(true);
     try {
-      // 로그인 POST /auth/login, 회원가입 POST /auth/signup → 가입 후 바로 로그인
-      if (isSignup) await auth.signup(loginId, pw, birth);
-      else await auth.login(loginId, pw);
+      // 회원가입은 가입만 하고 로그인 화면으로 (아이디는 채워둠), 로그인은 홈으로
+      if (isSignup) {
+        await auth.signup(loginId, pw, birth); // POST /auth/signup
+        notify('가입이 완료됐어요.', '가입한 아이디로 로그인해주세요.');
+        router.replace({ pathname: '/login', params: { id: loginId } });
+        return;
+      }
+      await auth.login(loginId, pw); // POST /auth/login
       router.replace('/');
     } catch (e) {
       const err = toApiError(e);

@@ -64,7 +64,8 @@ export const defaultServerUrl = () => ENV_URL;
 // 요청마다 저장된 토큰을 붙임
 http.interceptors.request.use(async (config) => {
   const token = await getAccessToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  // 직접 넣은 토큰이 있으면 그대로 (가입 직후 생년월일 저장)
+  if (token && !config.headers.Authorization) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
