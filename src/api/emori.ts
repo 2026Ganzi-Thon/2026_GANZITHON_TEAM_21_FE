@@ -102,8 +102,7 @@ export const me = {
     return {
       name: data.nickname || data.loginId,
       friendCode: data.friendCode,
-      // 자기신고 성인 상태는 서버가 새 이름을 정할 예정 → UNKNOWN·INELIGIBLE 이 아니면 성인으로
-      adult: data.adultStatus !== 'UNKNOWN' && data.adultStatus !== 'INELIGIBLE',
+      adult: isAdultStatus(data.adultStatus),
       needsBirthDate: data.adultStatus === 'UNKNOWN', // 생년월일을 아직 안 받은 계정
     };
   },
@@ -118,9 +117,13 @@ export const me = {
       return isAdult(birthDate);
     }
     const { data } = await http.put<S.Me>('/me/birth-date', { birthDate });
-    return data.adultStatus !== 'UNKNOWN' && data.adultStatus !== 'INELIGIBLE';
+    return isAdultStatus(data.adultStatus);
   },
 };
+
+// 서버 성인 상태 (지섭님 11/18): 자기신고 SELF_REPORTED_19_PLUS / SELF_REPORTED_UNDER_19,
+// 생년월일 없음 UNKNOWN. 예전 값 VERIFIED_19_PLUS 도 성인으로
+const isAdultStatus = (s: string) => s === 'SELF_REPORTED_19_PLUS' || s === 'VERIFIED_19_PLUS';
 
 // 만 나이 19세 이상인지 (한국 날짜 기준). 판정은 서버가 하고, 화면 안내용으로만 씀
 export function isAdult(birthDate: string, today = new Date()) {

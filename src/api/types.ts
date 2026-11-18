@@ -124,8 +124,13 @@ export type Me = {
   loginId: string;
   nickname: string;
   friendCode: string;
-  // UNKNOWN = 생년월일 없음. 자기신고 성인은 서버가 새 값을 추가할 예정 (string 으로 열어둠)
-  adultStatus: 'UNKNOWN' | 'VERIFIED_19_PLUS' | 'INELIGIBLE' | (string & {});
+  // UNKNOWN = 생년월일 없음 → 익명 불가. 자기신고(본인 입력)는 SELF_REPORTED_* (11/18)
+  adultStatus:
+    | 'UNKNOWN'
+    | 'SELF_REPORTED_19_PLUS'
+    | 'SELF_REPORTED_UNDER_19'
+    | 'VERIFIED_19_PLUS'
+    | 'INELIGIBLE';
 };
 
 export type Session = { accessToken: string; refreshToken: string; expiresIn: number };

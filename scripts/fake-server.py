@@ -148,7 +148,7 @@ def adult_status(birth):
     y, m, d = map(int, birth.split("-"))
     today = datetime.now(timezone(timedelta(hours=9))).date()
     age = today.year - y - ((today.month, today.day) < (m, d))
-    return "VERIFIED_19_PLUS" if age >= 19 else "INELIGIBLE"
+    return "SELF_REPORTED_19_PLUS" if age >= 19 else "SELF_REPORTED_UNDER_19"
 
 
 def valid_birth(b):
@@ -335,7 +335,7 @@ def route(m, p, q, b, uid, key):
         elif r in ("SELF", "ANONYMOUS"):
             if (e := only(b, ["route"])):
                 return e
-            if r == "ANONYMOUS" and adult_status(u.get("birthDate")) != "VERIFIED_19_PLUS":
+            if r == "ANONYMOUS" and adult_status(u.get("birthDate")) != "SELF_REPORTED_19_PLUS":
                 return err("AGE_REQUIRED", "만 19세 이상만 쓸 수 있어요.", 403)
             if r == "ANONYMOUS" and not settings[uid]["anonymousEnabled"]:
                 return err("ANONYMOUS_DISABLED", "익명 설정을 켜주세요.", 403)
@@ -480,7 +480,7 @@ def route(m, p, q, b, uid, key):
     if m == "GET" and p == "/me/settings":
         return 200, settings[uid]
     if m == "PATCH" and p == "/me/settings":
-        if b.get("anonymousEnabled") and adult_status(u.get("birthDate")) != "VERIFIED_19_PLUS":
+        if b.get("anonymousEnabled") and adult_status(u.get("birthDate")) != "SELF_REPORTED_19_PLUS":
             return err("AGE_REQUIRED", "만 19세 이상만 쓸 수 있어요.", 403)
         settings[uid].update({k: v for k, v in b.items() if k in ("anonymousEnabled", "pushEnabled")})
         return 200, settings[uid]
