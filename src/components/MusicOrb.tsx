@@ -40,6 +40,10 @@ export default function MusicOrb({
   const rotation = useSharedValue(0);
   const prevAngle = useSharedValue(0);
   const turned = useSharedValue(0); // 이번 제스처에서 돌린 총 각도
+  const active = useSharedValue(enabled); // 제스처 안에서도 '음악 있음'을 한 번 더 확인
+  useEffect(() => {
+    active.set(enabled);
+  }, [enabled, active]);
   const c = size / 2;
 
   const startSpin = useCallback(() => {
@@ -82,6 +86,7 @@ export default function MusicOrb({
       turned.value = 0;
     })
     .onUpdate((e) => {
+      if (!active.get()) return;
       const a = Math.atan2(e.y - c, e.x - c);
       let d = a - prevAngle.value;
       if (d > Math.PI) d -= 2 * Math.PI;
@@ -92,6 +97,7 @@ export default function MusicOrb({
       prevAngle.value = a;
     })
     .onEnd(() => {
+      if (!active.get()) return;
       scheduleOnRN(onGestureEnd, turned.value);
     });
 
@@ -107,6 +113,12 @@ export default function MusicOrb({
   const rotateStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.get()}deg` }],
   }));
+
+  // 음악이 없는 구슬(빈 + 화면, 휠에서 고르는 중)은 아예 돌릴 수 없게 제스처를 붙이지 않음
+  // 폰에서 .enabled(false) 여도 구슬을 끌면 같이 돌아가서, 선택을 풀면 + 가 기울어져 보였음
+  if (!enabled && !onTap) {
+    return <View style={{ width: size, height: size }}>{children}</View>;
+  }
 
   return (
     // 제스처는 회전하지 않는 바깥 View 에서 받음 (EmotionWheel 과 같은 이유)
