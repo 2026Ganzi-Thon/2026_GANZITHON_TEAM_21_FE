@@ -1,17 +1,58 @@
-// 가짜 데이터 - 연동 시 GET /catalog/sounds 로 교체
-// PRD v1.4 4-5, 5-2: 서비스가 제공하는 15초 이내 무보컬 소리 중에서 골라 구슬에 넣음 (AI 생성·크레딧 없음)
-import { Sounds } from '@/constants/assets';
+// 샘플 음악 목록 (목업). 연동 시 GET /catalog/sounds
+// 기획 결정(11/16): 15초 이내 무보컬, 부스 시연은 미리 만든 샘플 음악
+import { SampleSounds } from '@/constants/assets';
+import type { AudioSource, EmotionKey } from '@/types/emotion';
 
 export type SoundItem = {
   id: string;
   title: string;
+  color: EmotionKey | null; // 어울리는 감정 색 (추천 순서에 씀)
   seconds: number;
-  source: number;
+  source: AudioSource;
 };
 
 export const mockSounds: SoundItem[] = [
-  { id: 's_warm', title: '포근한 오후', seconds: 12, source: Sounds.warm01 },
-  { id: 's_clear', title: '맑은 새벽', seconds: 12, source: Sounds.clear01 },
-  { id: 's_wave', title: '잔잔한 물결', seconds: 12, source: Sounds.wave01 },
-  { id: 's_spark', title: '반짝이는 밤', seconds: 12, source: Sounds.spark01 },
+  {
+    id: 'sample_yellow',
+    title: '햇살 산책',
+    color: 'yellow',
+    seconds: 15,
+    source: SampleSounds.yellow,
+  },
+  {
+    id: 'sample_orange',
+    title: '설레는 걸음',
+    color: 'orange',
+    seconds: 15,
+    source: SampleSounds.orange,
+  },
+  {
+    id: 'sample_pink',
+    title: '포근한 오후',
+    color: 'pink',
+    seconds: 15,
+    source: SampleSounds.pink,
+  },
+  { id: 'sample_red', title: '가라앉히는 숨', color: 'red', seconds: 15, source: SampleSounds.red },
+  {
+    id: 'sample_purple',
+    title: '창밖의 빗소리',
+    color: 'purple',
+    seconds: 15,
+    source: SampleSounds.purple,
+  },
+  {
+    id: 'sample_blue',
+    title: '잔잔한 파도',
+    color: 'blue',
+    seconds: 15,
+    source: SampleSounds.blue,
+  },
+  {
+    id: 'sample_green',
+    title: '숲속 시냇물',
+    color: 'green',
+    seconds: 15,
+    source: SampleSounds.green,
+  },
 ];

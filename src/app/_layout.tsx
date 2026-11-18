@@ -6,10 +6,17 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { loadServerUrl, setOnSessionExpired } from '@/api/client';
 import Cover from '@/components/Cover';
 import NotificationBanner from '@/components/NotificationBanner';
 import { Colors } from '@/constants/colors';
 import { FontAssets } from '@/constants/typography';
+import { signOut } from '@/stores/authStore';
+
+// 토큰이 만료되고 갱신도 실패하면 로그인 화면으로 (명세 §1)
+setOnSessionExpired(() => {
+  void signOut();
+});
 
 SplashScreen.preventAutoHideAsync();
 
@@ -28,12 +35,17 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(FontAssets);
   const [showCover, setShowCover] = useState(true);
   const hideCover = useCallback(() => setShowCover(false), []);
+  // 숨은 메뉴에서 바꾼 서버 주소를 먼저 불러옴 (화면이 API 를 부르기 전에)
+  const [urlReady, setUrlReady] = useState(false);
+  useEffect(() => {
+    loadServerUrl().finally(() => setUrlReady(true));
+  }, []);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) SplashScreen.hideAsync();
-  }, [fontsLoaded, fontError]);
+    if ((fontsLoaded || fontError) && urlReady) SplashScreen.hideAsync();
+  }, [fontsLoaded, fontError, urlReady]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if ((!fontsLoaded && !fontError) || !urlReady) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

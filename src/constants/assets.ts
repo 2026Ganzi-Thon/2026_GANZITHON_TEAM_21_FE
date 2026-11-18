@@ -104,11 +104,18 @@ export const Images = {
 // 임시 음악 (무보컬 12초). 실제 음원 받으면 교체
 export const Sounds = {
   calm01: require('@/assets/sounds/calm-01.wav'),
-  // 시연용 제공 사운드 (12초, 무보컬). 연동 시 서버 카탈로그(GET /catalog/sounds) 음원으로 교체
-  warm01: require('@/assets/sounds/warm-01.wav'),
-  clear01: require('@/assets/sounds/clear-01.wav'),
-  wave01: require('@/assets/sounds/wave-01.wav'),
-  spark01: require('@/assets/sounds/spark-01.wav'),
+};
+
+// 시연용 샘플 음악 (감정 색별 15초, 무보컬, 코드로 합성 → 저작권 없음)
+// 기획 결정(11/16): 부스 시연은 사전 제작 샘플, AI 음악 생성은 나중에
+export const SampleSounds = {
+  yellow: require('@/assets/sounds/sample-yellow.m4a'),
+  orange: require('@/assets/sounds/sample-orange.m4a'),
+  pink: require('@/assets/sounds/sample-pink.m4a'),
+  red: require('@/assets/sounds/sample-red.m4a'),
+  purple: require('@/assets/sounds/sample-purple.m4a'),
+  blue: require('@/assets/sounds/sample-blue.m4a'),
+  green: require('@/assets/sounds/sample-green.m4a'),
 };
 
 export const Avatars = {

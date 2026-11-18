@@ -1,8 +1,10 @@
 import { Image } from 'expo-image';
+import { useFocusEffect } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { records } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
 import RecordSheet from '@/components/RecordSheet';
 import ViewMenu from '@/components/ViewMenu';
@@ -10,8 +12,8 @@ import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import { Colors } from '@/constants/colors';
 import { getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
+import { useApi } from '@/hooks/useApi';
 import { mockViews } from '@/mocks/home';
-import { getWeeks, mockRecordStartLabel } from '@/mocks/record';
 import { setViewIndex, useViewIndex } from '@/stores/viewStore';
 import type { WeekRecord } from '@/types/emotion';
 
@@ -26,7 +28,10 @@ const COL_LEFT = 44; // 첫 칸 왼쪽 (칸 너비 80 → 구슬 중심 84)
 export default function RecordScreen() {
   const index = useViewIndex(); // 메인에서 고른 화면(내 감정 / 전체 감정) 그대로
   const view = mockViews[index];
-  const weeks = getWeeks(view.kind); // TODO: 감정 기록 API
+  // GET /records → 월요일 시작 12주로 묶음 (탭에 돌아올 때마다 새로)
+  const book = useApi(() => records(view.kind), [view.kind]);
+  useFocusEffect(book.reload);
+  const weeks = book.data?.weeks ?? [];
   const [openWeek, setOpenWeek] = useState<WeekRecord | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -38,7 +43,7 @@ export default function RecordScreen() {
       <AppHeader title={view.title} subtitle="기록장" onPressTitle={() => setMenuOpen(true)} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.start}>{mockRecordStartLabel}</Text>
+        <Text style={styles.start}>{book.data?.startLabel ?? ' '}</Text>
 
         {rows.map((row, r) => (
           <View key={r} style={styles.rowBlock}>

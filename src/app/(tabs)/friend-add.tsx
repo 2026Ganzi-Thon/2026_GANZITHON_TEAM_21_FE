@@ -3,14 +3,16 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { toApiError, USE_MOCK } from '@/api/client';
+import { friends as friendsApi, me as meApi } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
 import PersonRow from '@/components/PersonRow';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import { Icons } from '@/constants/assets';
 import { Colors, NeuCard } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
-import { mockMe } from '@/mocks/me';
-import { mockRequests, mockUsers, type FriendRequest, type SearchUser } from '@/mocks/friendAdd';
+import { useApi } from '@/hooks/useApi';
+import { mockUsers, type FriendRequest, type SearchUser } from '@/mocks/friendAdd';
 import { notify } from '@/utils/dialog';
 
 // 헤더 👤+ > 친구 추가 (피그마 '친구추가' / '친구추가-입력')
@@ -18,22 +20,48 @@ import { notify } from '@/utils/dialog';
 // - 아이디를 입력하면: 검색 결과 (👤+ 요청 보내기)
 export default function FriendAddScreen() {
   const [query, setQuery] = useState('');
-  const [requests, setRequests] = useState<FriendRequest[]>(mockRequests);
-  const [users, setUsers] = useState<SearchUser[]>(mockUsers);
+  // 받은 친구 요청 (GET /friend-requests?direction=INCOMING) / 내 친구 코드 (GET /me)
+  const incoming = useApi(() => friendsApi.requests(), []);
+  const requests = incoming.data ?? [];
+  const myCode = useApi(() => meApi.get(), []).data?.friendCode ?? '';
+  const [requested, setRequested] = useState<string[]>([]);
 
   const q = query.trim().toLowerCase();
   const searching = q.length > 0;
-  const results = users.filter((u) => u.name.toLowerCase().includes(q));
+  // 명세에 사용자 검색 API가 없어서: 목업은 목록 검색, 서버 연동은 입력한 ID(친구 코드) 그대로 1명
+  const results: SearchUser[] = (
+    USE_MOCK
+      ? mockUsers.filter((u) => u.name.toLowerCase().includes(q))
+      : searching
+        ? [{ id: query.trim(), name: query.trim(), emotion: null, status: 'none' as const }]
+        : []
+  ).map((u) => (requested.includes(u.id) ? { ...u, status: 'requested' as const } : u));
 
   const answer = (req: FriendRequest, accept: boolean) => {
-    setRequests((prev) => prev.filter((r) => r.id !== req.id));
-    // TODO: 친구 요청 수락/거절 API
-    if (accept) notify(`${req.name}님과 친구가 됐어요.`);
+    friendsApi
+      .decide(req.id, accept) // PUT /friend-requests/{id}/decision
+      .then(() => {
+        incoming.setData((prev) => (prev ?? []).filter((r) => r.id !== req.id));
+        if (accept) notify(`${req.name}님과 친구가 됐어요.`);
+      })
+      .catch((e) => notify('처리하지 못했어요', toApiError(e).message));
   };
 
   const sendRequest = (user: SearchUser) => {
-    setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, status: 'requested' } : u)));
-    // TODO: 친구 요청 보내기 API
+    friendsApi
+      .request(user.id) // POST /friend-requests { friendCode }
+      .then(() => setRequested((prev) => [...prev, user.id]))
+      .catch((e) => {
+        const err = toApiError(e);
+        notify(
+          '요청을 보내지 못했어요',
+          err.code === 'RELATION_EXISTS'
+            ? '이미 친구이거나 요청을 보낸 사람이에요.'
+            : err.status === 404 || err.status === 422
+              ? '그런 아이디가 없어요. 다시 확인해주세요.'
+              : err.message,
+        );
+      });
   };
 
   const scan = () => {
@@ -48,7 +76,7 @@ export default function FriendAddScreen() {
       <View style={styles.search}>
         <View style={styles.labelRow}>
           <Text style={styles.label}>사용자 검색</Text>
-          <Text style={styles.myId}>내 ID: {mockMe.id}</Text>
+          <Text style={styles.myId}>내 ID: {myCode}</Text>
         </View>
         <View style={styles.field}>
           <TextInput

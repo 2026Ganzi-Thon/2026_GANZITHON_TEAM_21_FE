@@ -2,8 +2,9 @@ import { Image } from 'expo-image';
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Orbs } from '@/constants/assets';
 import { Colors, NeuCard } from '@/constants/colors';
-import { getEmotion, LIST_ORB_VISIBLE, orbImageStyle } from '@/constants/emotions';
+import { getEmotion, LIST_ORB_VISIBLE, ORB_FILL, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import type { EmotionKey } from '@/types/emotion';
 
@@ -11,7 +12,7 @@ const ORB = LIST_ORB_VISIBLE; // 리스트 구슬 공통 (피그마 상세기록
 
 type Props = {
   name: string;
-  emotion: EmotionKey;
+  emotion: EmotionKey | null; // 모르면 null → 회색 구슬
   children?: ReactNode; // 오른쪽 버튼들 (absolute 로 직접 배치)
   // 피그마: 줄이 화면 양옆 밖까지 나가 있음 (화면마다 -20 / -25)
   bleed?: number;
@@ -29,11 +30,15 @@ export default function PersonRow({
   orbCenterX = 64.5,
   nameX = 105,
 }: Props) {
-  const e = getEmotion(emotion);
+  const e = emotion ? getEmotion(emotion) : null;
   return (
     <View style={[styles.row, { marginHorizontal: -bleed }]}>
       <View style={[styles.orb, { left: bleed + orbCenterX - ORB / 2 }]}>
-        <Image source={e.image} style={orbImageStyle(e.key, ORB)} contentFit="contain" />
+        {e ? (
+          <Image source={e.image} style={orbImageStyle(e.key, ORB)} contentFit="contain" />
+        ) : (
+          <Image source={Orbs.mono} style={styles.mono} contentFit="contain" />
+        )}
       </View>
       <Text style={[styles.name, { left: bleed + nameX }]} numberOfLines={1}>
         {name}
@@ -44,6 +49,7 @@ export default function PersonRow({
 }
 
 const styles = StyleSheet.create({
+  mono: { width: ORB / ORB_FILL, height: ORB / ORB_FILL },
   row: {
     ...NeuCard,
     height: 64,

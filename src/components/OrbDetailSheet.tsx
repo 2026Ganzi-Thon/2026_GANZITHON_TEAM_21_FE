@@ -1,11 +1,14 @@
 import { Image } from 'expo-image';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import NeuButton from '@/components/NeuButton';
 import { Colors, NeuCard } from '@/constants/colors';
 import { LIST_ORB_VISIBLE, getEmotion, orbImageStyle, orbSource } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
+import { useDragToClose } from '@/hooks/useDragToClose';
 import type { EmotionKey } from '@/types/emotion';
 
 type Props = {
@@ -20,7 +23,7 @@ type Props = {
 };
 
 // 구슬 하나의 상세 기록 팝업 (PRD v1.4 4-4, 4-5 표: '구슬 짧게 탭 → 감정 및 반응 상세기록 팝업')
-// - 감정 정보(색 영역 + 단어 4개)를 구슬마다 따로 보여줌 → 섞은 구슬은 두 감정 모두 (PRD 3-3)
+// - 감정 정보(색 영역 + 매핑된 단어)를 구슬마다 따로 보여줌 → 섞은 구슬은 두 감정 모두 (PRD 3-3)
 // - 보낸이 / 받은 시각 / 소리 여부 / 반응
 export default function OrbDetailSheet({
   visible,
@@ -34,59 +37,72 @@ export default function OrbDetailSheet({
 }: Props) {
   const insets = useSafeAreaInsets();
   const [first] = emotions;
+  const { drag, sheetStyle, onLayout } = useDragToClose(visible, onClose);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="닫기" />
+      <GestureHandlerRootView style={styles.root}>
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="닫기" />
 
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
-        <View style={styles.handle} />
+        <Animated.View
+          onLayout={onLayout}
+          style={[styles.sheet, { paddingBottom: insets.bottom + 16 }, sheetStyle]}
+        >
+          {/* 손잡이를 아래로 끌면 닫힘 */}
+          <GestureDetector gesture={drag}>
+            <View style={styles.dragArea} collapsable={false}>
+              <View style={styles.handle} />
+            </View>
+          </GestureDetector>
 
-        <View style={styles.head}>
-          <View style={styles.socket}>
-            <Image
-              source={orbSource(emotions)}
-              style={orbImageStyle(first, LIST_ORB_VISIBLE)}
-              contentFit="contain"
-            />
+          <View style={styles.head}>
+            <View style={styles.socket}>
+              <Image
+                source={orbSource(emotions)}
+                style={orbImageStyle(first, LIST_ORB_VISIBLE)}
+                contentFit="contain"
+              />
+            </View>
+            <View style={styles.headText}>
+              <Text style={styles.title}>
+                {emotions.map((k) => getEmotion(k).label).join(' + ')}
+              </Text>
+              <Text style={styles.sub}>
+                {senderName} · {timeLabel}
+              </Text>
+            </View>
           </View>
-          <View style={styles.headText}>
-            <Text style={styles.title}>{emotions.map((k) => getEmotion(k).label).join(' + ')}</Text>
-            <Text style={styles.sub}>
-              {senderName} · {timeLabel}
+
+          {/* 감정마다 한 줄: 색 영역 + 사전 정의 단어 (단어를 따로 고르지 않음, 기획 결정 11/16) */}
+          {emotions.map((k) => {
+            const e = getEmotion(k);
+            return (
+              <View key={k} style={styles.row}>
+                <Text style={styles.rowLabel}>{e.label}</Text>
+                <Text style={styles.rowValue}>{e.words.join(', ')}</Text>
+              </View>
+            );
+          })}
+
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>소리</Text>
+            <Text style={styles.rowValue}>
+              {hasMusic ? '있음 · 구슬을 시계 방향으로 돌려 듣기' : '없음'}
             </Text>
           </View>
-        </View>
 
-        {/* 감정마다 한 줄: 색 영역 + 사전 정의 단어 (사용자가 단어를 고르지 않음, PRD 3-1) */}
-        {emotions.map((k) => {
-          const e = getEmotion(k);
-          return (
-            <View key={k} style={styles.row}>
-              <Text style={styles.rowLabel}>{e.label}</Text>
-              <Text style={styles.rowValue}>{e.words.join(', ')}</Text>
+          {showReaction && (
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>내 반응</Text>
+              <Text style={styles.rowValue}>{reaction ?? '보내지 않음'}</Text>
             </View>
-          );
-        })}
+          )}
 
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>소리</Text>
-          <Text style={styles.rowValue}>
-            {hasMusic ? '있음 · 구슬을 시계 방향으로 돌려 듣기' : '없음'}
-          </Text>
-        </View>
-
-        {showReaction && (
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>내 반응</Text>
-            <Text style={styles.rowValue}>{reaction ?? '보내지 않음'}</Text>
+          <View style={styles.button}>
+            <NeuButton label="닫기" variant="dark" onPress={onClose} />
           </View>
-        )}
-
-        <View style={styles.button}>
-          <NeuButton label="닫기" variant="dark" onPress={onClose} />
-        </View>
-      </View>
+        </Animated.View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -94,7 +110,9 @@ export default function OrbDetailSheet({
 const SOCKET = 52;
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   backdrop: { flex: 1 },
+  dragArea: { paddingBottom: 14 },
   sheet: {
     backgroundColor: '#1B1B1B',
     borderTopLeftRadius: 16,
@@ -109,7 +127,6 @@ const styles = StyleSheet.create({
   handle: {
     alignSelf: 'center',
     marginTop: 9,
-    marginBottom: 20,
     width: 36,
     height: 5,
     borderRadius: 3,

@@ -4,7 +4,7 @@ import type { EmotionKey } from '@/types/emotion';
 export type Friend = {
   id: string;
   name: string;
-  emotion: EmotionKey; // 친구의 이번 주 대표 감정 구슬
+  emotion: EmotionKey | null; // 친구의 이번 주 대표 감정 구슬 (서버에 없으면 null → 회색 구슬)
   favorite: boolean; // ♡ 즐겨찾기
 };
 

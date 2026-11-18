@@ -1,18 +1,22 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { toApiError } from '@/api/client';
+import { auth, me, settings as settingsApi } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
+import BirthDateSheet from '@/components/BirthDateSheet';
+import ServerUrlSheet from '@/components/ServerUrlSheet';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import Toggle from '@/components/Toggle';
 import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
-import { signOut } from '@/stores/authStore';
+import { useApi } from '@/hooks/useApi';
 import { setCareEnabled, useCare } from '@/stores/careStore';
-import { dateLabel, isResting, useRest } from '@/stores/restStore';
+import { dateLabel, hydrateRest, isResting, useRest } from '@/stores/restStore';
 import { notify, confirm } from '@/utils/dialog';
 
 type ToggleKey = 'anonymous' | 'push' | 'mindLens' | 'swipeMusic';
@@ -35,8 +39,8 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
       {
         kind: 'toggle',
         key: 'anonymous',
-        title: '익명 구슬 받기',
-        desc: '익명으로 아무에게 감정을 주고 받기(성인 전용)',
+        title: '익명 구슬 주고받기',
+        desc: '익명으로 감정을 보내고 받기 (만 19세 이상)',
       },
     ],
   },
@@ -73,17 +77,34 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
 
 // 햄버거 > 설정 / 헤더 ⚙︎ (피그마 '설정')
 export default function SettingsScreen() {
-  // TODO: 설정 조회/저장 API
-  const [values, setValues] = useState<Record<ToggleKey, boolean>>({
-    anonymous: false,
-    push: true,
+  // 서버 설정 (GET /me/settings): 익명 받기·알림·휴식. 목업이면 null
+  const server = useApi(() => settingsApi.get(), []);
+  useEffect(() => {
+    if (server.data) hydrateRest(server.data.rest);
+  }, [server.data]);
+
+  const [values, setValues] = useState<Partial<Record<ToggleKey, boolean>>>({});
+  const defaults: Record<ToggleKey, boolean> = {
+    anonymous: server.data?.anonymousEnabled ?? false, // PRD 5-2: 익명은 기본 꺼짐
+    push: server.data?.pushEnabled ?? true,
     mindLens: true,
     swipeMusic: true,
-  });
+  };
 
   const set = (key: ToggleKey, next: boolean) => {
     if (key === 'mindLens') setCareEnabled(next); // 홈 케어 카드와 연결
     setValues((prev) => ({ ...prev, [key]: next }));
+    if (key !== 'anonymous' && key !== 'push') return;
+    // 서버 저장 (PATCH /me/settings). 실패하면 되돌림
+    const body = key === 'anonymous' ? { anonymousEnabled: next } : { pushEnabled: next };
+    settingsApi.patch(body).catch((e) => {
+      setValues((prev) => ({ ...prev, [key]: !next }));
+      const err = toApiError(e);
+      notify(
+        err.code === 'AGE_REQUIRED' ? '만 19세 이상만 쓸 수 있어요.' : '설정을 저장하지 못했어요.',
+        err.code === 'AGE_REQUIRED' ? undefined : err.message,
+      );
+    });
   };
   const care = useCare();
   const rest = useRest();
@@ -94,17 +115,37 @@ export default function SettingsScreen() {
       : rest.mode === 'scheduled'
         ? `${isResting(rest) ? '쉬는 중' : '예약됨'} · ${dateLabel(rest.from)} ~ ${dateLabel(rest.to)}`
         : undefined;
-  const valueOf = (key: ToggleKey) => (key === 'mindLens' ? care.enabled : values[key]);
+  const valueOf = (key: ToggleKey) =>
+    key === 'mindLens' ? care.enabled : (values[key] ?? defaults[key]);
+
+  // 생년월일 없이 가입한 계정은 익명을 처음 켤 때 입력 (기획 결정 11/16)
+  const [birthOpen, setBirthOpen] = useState(false);
+  // 숨은 메뉴: '도움과 소리' 제목을 2초 길게 누르면 서버 주소 바꾸기
+  const [serverOpen, setServerOpen] = useState(false);
+  const onBirthDate = (birthDate: string) => {
+    me.setBirthDate(birthDate) // PUT /me/birth-date
+      .then((adult) => {
+        if (adult) set('anonymous', true);
+        else notify('만 19세 이상만 쓸 수 있어요.', '익명 구슬은 만 19세부터 주고받을 수 있어요.');
+      })
+      .catch((e) => notify('생년월일을 저장하지 못했어요.', toApiError(e).message));
+  };
 
   const onToggle = (key: ToggleKey, next: boolean) => {
-    // 익명 구슬은 성인만 (기능명세 TR-07) - 연동 시 성인 인증 여부로 막기
+    // 익명은 보내기·받기 한 번에 켜고 끔 (세부 정책 1-2), 만 19세 이상만 (서버가 AGE_REQUIRED 로 막음)
     if (key === 'anonymous' && next) {
-      confirm({
-        title: '익명 구슬 받기',
-        message: '만 19세 이상만 사용할 수 있어요. 켤까요?',
-        okText: '켜기',
-        onOk: () => set(key, true),
-      });
+      me.get()
+        .then((profile) => {
+          if (profile.needsBirthDate) return setBirthOpen(true);
+          if (!profile.adult) return notify('만 19세 이상만 쓸 수 있어요.');
+          confirm({
+            title: '익명 구슬 주고받기',
+            message: '켜면 모르는 사람과 익명으로 감정 구슬을 보내고 받을 수 있어요.',
+            okText: '켜기',
+            onOk: () => set(key, true),
+          });
+        })
+        .catch((e) => notify('확인하지 못했어요.', toApiError(e).message));
       return;
     }
     set(key, next);
@@ -117,7 +158,12 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {SECTIONS.map((section) => (
           <View key={section.title} style={styles.section}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <Pressable
+              onLongPress={section.title === '도움과 소리' ? () => setServerOpen(true) : undefined}
+              delayLongPress={2000}
+            >
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+            </Pressable>
             <View style={styles.card}>
               {section.rows.map((row, i) => (
                 <Fragment key={row.title}>
@@ -167,7 +213,7 @@ export default function SettingsScreen() {
               okText: '로그아웃',
               destructive: true,
               onOk: async () => {
-                await signOut();
+                await auth.logout();
                 router.replace('/login');
               },
             })
@@ -177,6 +223,13 @@ export default function SettingsScreen() {
           <Text style={styles.logoutText}>로그아웃</Text>
         </Pressable>
       </ScrollView>
+
+      <ServerUrlSheet visible={serverOpen} onClose={() => setServerOpen(false)} />
+      <BirthDateSheet
+        visible={birthOpen}
+        onSubmit={onBirthDate}
+        onClose={() => setBirthOpen(false)}
+      />
     </SafeAreaView>
   );
 }

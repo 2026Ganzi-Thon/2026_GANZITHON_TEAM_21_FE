@@ -21,11 +21,14 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { toApiError } from '@/api/client';
+import { deleteRecord, recordReactions } from '@/api/emori';
 import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { getEmotion, LIST_ORB_VISIBLE, orbImageStyle, orbSource } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
-import { confirm } from '@/utils/dialog';
+import { reactionEmoji } from '@/mocks/receive';
+import { confirm, notify } from '@/utils/dialog';
 import type { RecordEntry, WeekRecord } from '@/types/emotion';
 
 const MAX_REACTIONS = 3; // 이보다 많으면 '+N'
@@ -53,16 +56,46 @@ export default function RecordSheet({ week, mode = 'all', onClose, onPressEntry 
 
   // 내가 보낸 기록 삭제 (PRD 5-4: 내 기록에서만 지우고 받은 사람 기록은 유지)
   const [deleted, setDeleted] = useState<string[]>([]);
-  const isMine = (entry: RecordEntry) => mode === 'mine' || entry.senderName === '나(본인)';
+  // 받은 기록은 지울 수 없음 (서버 403) → 내가 보낸·남긴 기록만
+  const isMine = (entry: RecordEntry) =>
+    entry.own ?? (mode === 'mine' || entry.senderName === '나(본인)');
   const askDelete = (entry: RecordEntry) =>
     confirm({
       title: '내 기록에서 삭제할까요?',
       message: '받은 사람의 기록은 그대로 남아요.',
       okText: '삭제',
       destructive: true,
-      onOk: () => setDeleted((prev) => [...prev, entry.id]), // TODO: 발신 기록 삭제 API
+      onOk: () =>
+        deleteRecord(entry.id) // DELETE /records/{id} (내 기록만 숨김, 받은 사람 사본은 유지)
+          .then(() => setDeleted((prev) => [...prev, entry.id]))
+          .catch((e) => notify('삭제하지 못했어요', toApiError(e).message)),
     });
   const entries = week?.entries.filter((e) => !deleted.includes(e.id)) ?? [];
+
+  // 내가 보낸 구슬에 받은 반응 (GET /records/{id}, 익명은 반응별 합계)
+  // 목업 기록은 entry.reactions 에 이미 들어 있음
+  const [fetched, setFetched] = useState<Record<string, string[]>>({});
+  useEffect(() => {
+    const own = week?.entries.filter((e) => e.own) ?? [];
+    if (own.length === 0) return;
+    let alive = true;
+    Promise.all(
+      own.map((e) =>
+        recordReactions(e.id)
+          .then(
+            (list) =>
+              [e.id, list.flatMap((r) => Array(r.count).fill(reactionEmoji(r.code)))] as const,
+          )
+          .catch(() => [e.id, []] as const),
+      ),
+    ).then((pairs) => {
+      if (alive) setFetched(Object.fromEntries(pairs));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [week]);
+  const reactionsOf = (e: RecordEntry) => (fetched[e.id]?.length ? fetched[e.id] : e.reactions);
 
   const openReceived = (entry: RecordEntry) => {
     if (!entry.receivedId) return;
@@ -148,7 +181,8 @@ export default function RecordSheet({ week, mode = 'all', onClose, onPressEntry 
             {entries.map((entry) => {
               const [first] = entry.emotions;
               const labels = entry.emotions.map((k) => getEmotion(k).label).join(' + ');
-              const extra = entry.reactions.length - MAX_REACTIONS;
+              const reactions = reactionsOf(entry);
+              const extra = reactions.length - MAX_REACTIONS;
               // 받은 구슬은 눌러서 그때 수신 화면으로 재진입 (PRD 4-4)
               const canOpen = !!entry.receivedId || !!onPressEntry;
               return (
@@ -189,7 +223,7 @@ export default function RecordSheet({ week, mode = 'all', onClose, onPressEntry 
                     </Text>
                   </View>
                   <View style={[styles.colReaction, styles.reactions]}>
-                    {entry.reactions.slice(0, MAX_REACTIONS).map((r, i) => (
+                    {reactions.slice(0, MAX_REACTIONS).map((r, i) => (
                       <Text key={i} style={[styles.emoji, i > 0 && styles.emojiOverlap]}>
                         {r}
                       </Text>
