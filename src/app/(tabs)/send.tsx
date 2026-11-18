@@ -113,8 +113,8 @@ export default function SendScreen() {
   // 친구에게는 한 번에 한 명 (세부 정책 2-2) → 다른 친구를 누르면 바뀜
   const toggleRecipient = (id: string) => setRecipientId((prev) => (prev === id ? null : id));
 
-  // "감정 선택을 마쳤다면 바깥을 터치" → 음악 넣을지 묻기
-  const onPressOutside = () => {
+  // "감정 선택을 마쳤다면 구슬을 터치" → 음악 넣을지 묻기 (11/18: 바깥 터치 → 가운데 구슬 터치로)
+  const onPressOrb = () => {
     if (step === 'pick' && emotions.length > 0) setStep('ask');
   };
 
@@ -135,7 +135,7 @@ export default function SendScreen() {
   };
 
   // 홈 화면 큰 위젯에서 구슬을 누르고 들어오면 (ganzithon21://send?emotion=blue)
-  // 그 색을 골라둔 휠 화면에서 시작 → 하나 더 고르면 섞기, 바깥 터치하면 다음
+  // 그 색을 골라둔 휠 화면에서 시작 → 하나 더 고르면 섞기, 가운데 구슬 터치하면 다음
   // (effect 안에서 setState 하지 않고, 렌더 중에 '처음 보는 값'일 때만 상태를 맞춤)
   const { emotion: preset } = useLocalSearchParams<{ emotion?: string }>();
   const [appliedPreset, setAppliedPreset] = useState<string>();
@@ -286,14 +286,12 @@ export default function SendScreen() {
         : [
             emotions.map((k) => getEmotion(k).label).join(' + '),
             emotions.length === 1
-              ? '감정 선택을 마쳤다면 바깥을 터치, 하나 더 고르면 섞기'
-              : '감정 선택을 마쳤다면 바깥을 터치하기',
+              ? '감정 선택을 마쳤다면 구슬을 터치, 하나 더 고르면 섞기'
+              : '감정 선택을 마쳤다면 구슬을 터치하기',
           ];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onPressOutside} />
-
       <View style={styles.headerLayer} pointerEvents="box-none">
         <AppHeader title="감정 보내기" />
       </View>
@@ -361,7 +359,7 @@ export default function SendScreen() {
                   ? () => setStep('pick')
                   : step === 'ready'
                     ? () => setStep('share') // 음악 구슬은 터치로 보내기
-                    : onPressOutside
+                    : onPressOrb
               }
             >
               {!firstEmotion && (
