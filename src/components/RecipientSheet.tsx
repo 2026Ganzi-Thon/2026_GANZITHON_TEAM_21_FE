@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { ApiError } from '@/api/client';
+import LoadError from '@/components/LoadError';
 import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
@@ -18,6 +20,10 @@ type Props = {
   onBack: () => void; // ‹ 뒤로 가기 → 감정 다시 고르기
   onClose: () => void; // ×
   onSend: () => void;
+  sending?: boolean; // 서버 응답 기다리는 중 → '보내는 중…', 다시 못 누름
+  friendsError?: ApiError; // 친구 목록을 못 불러왔을 때
+  onRetryFriends?: () => void;
+  onAddFriend?: () => void; // 친구가 0명일 때 '친구 추가하러 가기'
 };
 
 const ROUTES: { key: SendRoute; label: string }[] = [
@@ -48,6 +54,10 @@ export default function RecipientSheet({
   onBack,
   onClose,
   onSend,
+  sending = false,
+  friendsError,
+  onRetryFriends,
+  onAddFriend,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -143,8 +153,19 @@ export default function RecipientSheet({
 
         {route === 'friends' ? (
           <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-            {recipients.length === 0 && (
-              <Text style={styles.empty}>아직 친구가 없어요. 친구를 추가해보세요.</Text>
+            {friendsError && onRetryFriends ? (
+              <LoadError error={friendsError} onRetry={onRetryFriends} />
+            ) : (
+              recipients.length === 0 && (
+                <View style={styles.emptyBox}>
+                  <Text style={styles.empty}>아직 친구가 없어요.</Text>
+                  {onAddFriend && (
+                    <Pressable onPress={onAddFriend} hitSlop={10} accessibilityRole="button">
+                      <Text style={styles.addFriend}>친구 추가하러 가기 ›</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )
             )}
             {recipients.map((r) => renderRow(r, false))}
           </ScrollView>
@@ -156,8 +177,13 @@ export default function RecipientSheet({
         )}
 
         {canSend && (
-          <Pressable style={styles.sendButton} onPress={onSend}>
-            <Text style={styles.sendText}>{sendLabel}</Text>
+          <Pressable
+            style={[styles.sendButton, sending && styles.sending]}
+            onPress={onSend}
+            disabled={sending}
+            accessibilityState={{ busy: sending, disabled: sending }}
+          >
+            <Text style={styles.sendText}>{sending ? '보내는 중…' : sendLabel}</Text>
           </Pressable>
         )}
       </View>
@@ -233,6 +259,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textMuted,
   },
+  emptyBox: { alignItems: 'center', gap: 10 },
+  addFriend: {
+    fontFamily: Fonts.medium,
+    fontSize: 14,
+    color: Colors.textActive,
+    textDecorationLine: 'underline',
+  },
+  sending: { opacity: 0.6 },
   info: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 70, gap: 8 },
   infoTitle: { fontFamily: Fonts.semiBold, fontSize: 16, color: Colors.textSecondary },
   infoSub: {

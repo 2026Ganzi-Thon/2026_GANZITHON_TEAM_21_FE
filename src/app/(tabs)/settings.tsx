@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Fragment, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -79,6 +79,7 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
 export default function SettingsScreen() {
   // 서버 설정 (GET /me/settings): 익명 받기·알림·휴식. 목업이면 null
   const server = useApi(() => settingsApi.get(), []);
+  useFocusEffect(server.reload); // 보내기 화면에서 익명을 켰으면 여기도 반영
   useEffect(() => {
     if (server.data) hydrateRest(server.data.rest);
   }, [server.data]);

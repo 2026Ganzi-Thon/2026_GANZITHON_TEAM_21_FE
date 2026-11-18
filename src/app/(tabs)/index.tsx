@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { records } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
+import LoadError from '@/components/LoadError';
 import EmotionOrb from '@/components/EmotionOrb';
 import CareCard, { useCareCard } from '@/components/CareCard';
 import PageDots from '@/components/PageDots';
@@ -105,8 +106,14 @@ export default function HomeScreen() {
           </View>
         ) : (
           <>
-            <Text style={styles.message}>{message}</Text>
-            <Text style={styles.hint}>구슬을 눌러 감정 기록을 확인해보세요.</Text>
+            {book.error ? (
+              <LoadError error={book.error} onRetry={book.reload} />
+            ) : (
+              <>
+                <Text style={styles.message}>{message}</Text>
+                <Text style={styles.hint}>구슬을 눌러 감정 기록을 확인해보세요.</Text>
+              </>
+            )}
           </>
         )}
       </ScrollView>

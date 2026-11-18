@@ -6,6 +6,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { toApiError } from '@/api/client';
 import { friends as friendsApi } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
+import LoadError from '@/components/LoadError';
 import PersonRow from '@/components/PersonRow';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import { Icons } from '@/constants/assets';
@@ -101,7 +102,17 @@ export default function SocialScreen() {
               </Pressable>
             </PersonRow>
           ))}
-          {shown.length === 0 && <Text style={styles.empty}>찾는 친구가 없어요.</Text>}
+          {list.error ? (
+            <LoadError error={list.error} onRetry={list.reload} />
+          ) : (
+            shown.length === 0 && (
+              <Text style={styles.empty}>
+                {friends.length === 0
+                  ? '아직 친구가 없어요. 오른쪽 위에서 친구를 추가해보세요.'
+                  : '찾는 친구가 없어요.'}
+              </Text>
+            )
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>

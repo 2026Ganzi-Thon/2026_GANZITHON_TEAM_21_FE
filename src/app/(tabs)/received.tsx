@@ -215,7 +215,9 @@ function ReceivedView({
               style={styles.playButton}
             >
               <Image source={Icons.headphones} style={styles.headphones} contentFit="contain" />
-              <Text style={styles.playLabel}>{music.playing ? '■ 멈추기' : '▶ 듣기'}</Text>
+              <Text style={styles.playLabel}>
+                {music.loading ? '불러오는 중…' : music.playing ? '■ 멈추기' : '▶ 듣기'}
+              </Text>
             </Pressable>
             <Text style={styles.musicTitle}>
               {music.playing ? '음악을 듣고 있어요.' : '감정과 관련 된 음악이 있어요.'}

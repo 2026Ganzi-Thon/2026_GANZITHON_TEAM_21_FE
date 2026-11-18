@@ -40,6 +40,7 @@ async function toPlayerSource(src: AudioSource): Promise<PlayerSource> {
 export function useOrbMusic(tracks?: AudioSource[]) {
   const player = useAudioPlayer(null);
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false); // 서버 음원 받는 중 (처음 1번, 1초쯤)
   const index = useRef(0); // 지금 재생 중인 곡
   const session = useRef(0); // 재생/정지할 때마다 +1 → 늦게 끝난 불러오기는 무시
 
@@ -51,12 +52,14 @@ export function useOrbMusic(tracks?: AudioSource[]) {
       // 이미 정리된 플레이어면 무시
     }
     setPlaying(false);
+    setLoading(false);
   }, [player]);
 
   const playAt = useCallback(
     async (i: number, mySession: number) => {
       const src = tracks?.[i];
       if (!src) return;
+      setLoading(true);
       try {
         const source = await toPlayerSource(src);
         if (mySession !== session.current) return; // 그 사이 정지됨
@@ -64,9 +67,11 @@ export function useOrbMusic(tracks?: AudioSource[]) {
         player.play();
         index.current = i;
         setPlaying(true);
+        setLoading(false);
       } catch {
         if (mySession !== session.current) return;
         setPlaying(false);
+        setLoading(false);
         notify('음악을 재생하지 못했어요', '감정구슬은 그대로 확인할 수 있어요.');
       }
     },
@@ -101,5 +106,5 @@ export function useOrbMusic(tracks?: AudioSource[]) {
   // 다른 화면으로 이동하면 정지 (MU-07)
   useFocusEffect(useCallback(() => stop, [stop]));
 
-  return { playing, play, stop };
+  return { playing, loading, play, stop };
 }

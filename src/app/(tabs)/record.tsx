@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { records } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
+import LoadError from '@/components/LoadError';
 import RecordSheet from '@/components/RecordSheet';
 import ViewMenu from '@/components/ViewMenu';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
@@ -44,6 +45,7 @@ export default function RecordScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.start}>{book.data?.startLabel ?? ' '}</Text>
+        {book.error && <LoadError error={book.error} onRetry={book.reload} />}
 
         {rows.map((row, r) => (
           <View key={r} style={styles.rowBlock}>

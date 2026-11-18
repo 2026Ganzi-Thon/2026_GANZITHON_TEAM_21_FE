@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { inbox as inboxApi } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
+import LoadError from '@/components/LoadError';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import { Icons } from '@/constants/assets';
 import { Colors, NeuCard } from '@/constants/colors';
@@ -56,7 +57,7 @@ export default function InboxScreen() {
         ))}
 
         {error ? (
-          <Text style={styles.empty}>{error.message}</Text>
+          <LoadError error={error} onRetry={reload} />
         ) : (
           inbox.length === 0 && <Text style={styles.empty}>아직 받은 감정구슬이 없어요.</Text>
         )}

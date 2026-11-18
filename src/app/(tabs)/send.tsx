@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,10 +11,13 @@ import {
   createOrb,
   dispatchOrb,
   friends as friendsApi,
+  me as meApi,
+  settings as settingsApi,
 } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
 import EmotionOrb from '@/components/EmotionOrb';
 import EmotionWheel, { WHEEL_SIZE } from '@/components/EmotionWheel';
+import LoadError from '@/components/LoadError';
 import MusicOrb from '@/components/MusicOrb';
 import RecipientSheet from '@/components/RecipientSheet';
 import { Avatars, Icons } from '@/constants/assets';
@@ -83,11 +86,17 @@ export default function SendScreen() {
   const mmss = `${Math.floor(remaining / 60000)}:${String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0')}`;
 
   // 받을 친구 목록 (GET /friends)
-  const friendList = useApi(() => friendsApi.list(), []).data ?? [];
-  const recipients = friendList.map((f) => ({ id: f.id, name: f.name, avatar: Avatars.a1 }));
+  const friendsQuery = useApi(() => friendsApi.list(), []);
+  useFocusEffect(friendsQuery.reload); // 친구 추가하고 돌아오면 새 친구가 보이게
+  const recipients = (friendsQuery.data ?? []).map((f) => ({
+    id: f.id,
+    name: f.name,
+    avatar: Avatars.a1,
+  }));
 
   // 샘플 음악 목록 (GET /catalog/sounds). 고른 색과 어울리는 음악을 앞에
-  const allSounds = useApi(() => catalogSounds.list(), []).data ?? [];
+  const soundsQuery = useApi(() => catalogSounds.list(), []);
+  const allSounds = soundsQuery.data ?? [];
   const sounds = [...allSounds].sort(
     (a, b) =>
       Number(!!b.color && emotions.includes(b.color)) -
@@ -108,6 +117,53 @@ export default function SendScreen() {
       if (prev.length >= MAX_EMOTIONS) return [prev[0], key];
       return [...prev, key];
     });
+  };
+
+  // '익명으로'를 고르는 순간 미리 확인 (보내기를 눌러서야 막히지 않게)
+  // 생년월일 없음 → 설정으로 / 만 19세 미만 → 안내 / 익명 꺼짐 → 여기서 바로 켜기
+  const chooseRoute = async (next: SendRoute) => {
+    if (next !== 'anonymous') return setRoute(next);
+    try {
+      const [profile, server] = await Promise.all([meApi.get(), settingsApi.get()]);
+      if (profile.needsBirthDate) {
+        return confirm({
+          title: '생년월일 확인이 필요해요',
+          message:
+            '익명 구슬은 만 19세 이상만 주고받을 수 있어요. 설정에서 생년월일을 입력하고 익명을 켜주세요.',
+          okText: '설정으로',
+          onOk: () => {
+            setStep(hasMusic ? 'ready' : 'ask');
+            router.navigate('/settings');
+          },
+        });
+      }
+      if (!profile.adult) return notify('익명 구슬은 만 19세 이상만 쓸 수 있어요.');
+      if (server && !server.anonymousEnabled) {
+        return confirm({
+          title: '익명 구슬 주고받기를 켤까요?',
+          message:
+            '켜면 모르는 사람과 익명으로 감정 구슬을 보내고 받을 수 있어요. 설정에서 언제든 끌 수 있어요.',
+          okText: '켜기',
+          onOk: async () => {
+            try {
+              await settingsApi.patch({ anonymousEnabled: true }); // PATCH /me/settings
+              setRoute('anonymous');
+            } catch (e) {
+              notify('익명을 켜지 못했어요.', toApiError(e).message);
+            }
+          },
+        });
+      }
+      setRoute('anonymous');
+    } catch (e) {
+      notify('확인하지 못했어요.', toApiError(e).message);
+    }
+  };
+
+  // 친구가 0명이면 친구 추가 화면으로 (보내던 구슬은 그대로 두고 돌아오면 이어서)
+  const goAddFriend = () => {
+    setStep(hasMusic ? 'ready' : 'ask');
+    router.navigate('/friend-add');
   };
 
   // 친구에게는 한 번에 한 명 (세부 정책 2-2) → 다른 친구를 누르면 바뀜
@@ -424,7 +480,14 @@ export default function SendScreen() {
                 );
               })}
             </View>
-            {sounds.length === 0 && <Text style={styles.note}>음악 목록을 불러오지 못했어요.</Text>}
+            {soundsQuery.error ? (
+              <LoadError error={soundsQuery.error} onRetry={soundsQuery.reload} />
+            ) : soundsQuery.loading ? (
+              <Text style={styles.note}>음악 목록을 불러오는 중…</Text>
+            ) : (
+              sounds.length === 0 && <Text style={styles.note}>등록된 음악이 없어요.</Text>
+            )}
+            {music.loading && <Text style={styles.note}>음악 불러오는 중…</Text>}
             <View style={styles.sentButtons}>
               <Pressable
                 onPress={onlyOrb}
@@ -499,7 +562,9 @@ export default function SendScreen() {
               style={styles.playButton}
             >
               <Image source={Icons.headphones} style={styles.headphones} contentFit="contain" />
-              <Text style={styles.note}>{music.playing ? '■ 멈추기' : '▶ 듣기'}</Text>
+              <Text style={styles.note}>
+                {music.loading ? '불러오는 중…' : music.playing ? '■ 멈추기' : '▶ 듣기'}
+              </Text>
             </Pressable>
             <Text style={styles.hint}>
               {'시계 방향으로 구슬을 스와이프 해서\n노래 듣기 및 터치로 보내기'}
@@ -518,13 +583,17 @@ export default function SendScreen() {
       <RecipientSheet
         visible={step === 'share'}
         route={route}
-        onChangeRoute={setRoute}
+        onChangeRoute={(r) => void chooseRoute(r)}
         recipients={recipients}
         selectedIds={recipientId ? [recipientId] : []}
         onToggle={toggleRecipient}
         onBack={() => setStep(hasMusic ? 'ready' : 'ask')}
         onClose={() => setStep(hasMusic ? 'ready' : 'ask')}
         onSend={onSend}
+        sending={busy}
+        friendsError={friendsQuery.error}
+        onRetryFriends={friendsQuery.reload}
+        onAddFriend={goAddFriend}
       />
     </SafeAreaView>
   );

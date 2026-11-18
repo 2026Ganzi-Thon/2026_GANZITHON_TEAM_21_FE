@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { toApiError, USE_MOCK } from '@/api/client';
 import { friends as friendsApi, me as meApi } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
+import LoadError from '@/components/LoadError';
 import PersonRow from '@/components/PersonRow';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import { Icons } from '@/constants/assets';
@@ -157,7 +158,10 @@ export default function FriendAddScreen() {
         {searching && results.length === 0 && (
           <Text style={styles.empty}>찾는 아이디가 없어요.</Text>
         )}
-        {!searching && requests.length === 0 && (
+        {!searching && incoming.error && (
+          <LoadError error={incoming.error} onRetry={incoming.reload} />
+        )}
+        {!searching && !incoming.error && requests.length === 0 && (
           <Text style={styles.empty}>받은 친구 요청이 없어요.</Text>
         )}
       </ScrollView>
