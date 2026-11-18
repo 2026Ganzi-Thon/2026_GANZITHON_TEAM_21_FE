@@ -1,19 +1,36 @@
 import { useAudioPlayer, type AudioSource as PlayerSource } from 'expo-audio';
+import { File, Paths } from 'expo-file-system';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import { freshAccessToken } from '@/api/client';
 import type { AudioSource } from '@/types/emotion';
 import { notify } from '@/utils/dialog';
 
+// 주소 → 캐시 파일 이름 (같은 음원은 한 번만 받음)
+const cacheName = (uri: string) => {
+  let h = 0;
+  for (let i = 0; i < uri.length; i += 1) h = (h * 31 + uri.charCodeAt(i)) | 0;
+  return `emori-sound-${(h >>> 0).toString(36)}.wav`; // 서버 음원은 WAV
+};
+
 // 서버 음원은 로그인 토큰을 헤더에 붙여야 재생됨 (명세 §6, FE_INTEGRATION)
-// 재생 직전에 토큰을 확인해서 붙임 (만료가 가까우면 먼저 갱신). 토큰은 주소에 넣지 않음
+// 폰: 토큰을 붙여 파일로 받아둔 뒤 그 파일을 재생 (스트리밍에 헤더가 안 붙는 경우 대비)
+//     받기에 실패하면 헤더를 붙여 바로 재생 시도. 토큰은 주소에 넣지 않음
 async function toPlayerSource(src: AudioSource): Promise<PlayerSource> {
   if (typeof src === 'number') return src;
   if (!src.auth) return { uri: src.uri };
-  const token = await freshAccessToken();
-  return { uri: src.uri, headers: token ? { Authorization: `Bearer ${token}` } : undefined };
+  const token = await freshAccessToken(); // 만료가 가까우면 먼저 갱신
+  const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+  if (Platform.OS === 'web') return { uri: src.uri, headers };
+  try {
+    const file = new File(Paths.cache, cacheName(src.uri));
+    if (!file.exists) await File.downloadFileAsync(src.uri, file, { headers, idempotent: true });
+    return { uri: file.uri };
+  } catch {
+    return { uri: src.uri, headers };
+  }
 }
 
 // 감정구슬 음악 재생 (PRD 4-5, 기능명세 MU-03 ~ MU-08)

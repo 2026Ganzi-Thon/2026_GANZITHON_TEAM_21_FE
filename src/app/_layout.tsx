@@ -1,3 +1,4 @@
+import { setAudioModeAsync } from 'expo-audio';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -35,6 +36,11 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(FontAssets);
   const [showCover, setShowCover] = useState(true);
   const hideCover = useCallback(() => setShowCover(false), []);
+  // 아이폰 무음 모드(옆 스위치)에서도 구슬 음악이 들리게 (사용자가 직접 돌려서 듣는 소리라서)
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+  }, []);
+
   // 숨은 메뉴에서 바꾼 서버 주소를 먼저 불러옴 (화면이 API 를 부르기 전에)
   const [urlReady, setUrlReady] = useState(false);
   useEffect(() => {
