@@ -7,6 +7,7 @@ import TabBar from '@/components/TabBar';
 import { Colors } from '@/constants/colors';
 import { notifyReceipt, notifyReceived } from '@/mocks/notifications';
 import { useAuthStatus } from '@/stores/authStore';
+import { setUnreadIds } from '@/stores/inboxStore';
 
 let demoShown = false;
 
@@ -30,6 +31,7 @@ export default function TabsLayout() {
     const check = async () => {
       try {
         const fresh = await inbox.unread(); // GET /inbox?unreadOnly=true
+        setUnreadIds(fresh.map((r) => r.id)); // 반응 탭 숫자
         const news = first ? undefined : fresh.find((r) => !seen.has(r.id));
         fresh.forEach((r) => seen.add(r.id));
         first = false;

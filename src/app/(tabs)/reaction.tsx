@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
+import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,7 +13,7 @@ import { Colors, NeuCard } from '@/constants/colors';
 import { getEmotion, LIST_ORB_VISIBLE, orbImageStyle, orbSource } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
 import { useApi } from '@/hooks/useApi';
-import { useOpenedIds } from '@/stores/inboxStore';
+import { setUnreadIds, useOpenedIds } from '@/stores/inboxStore';
 import { isResting, useRest } from '@/stores/restStore';
 import type { ReceivedEmotion } from '@/types/emotion';
 
@@ -26,10 +27,15 @@ export default function InboxScreen() {
   const opened = useOpenedIds();
   const rest = useRest();
   // GET /inbox (최신순). 탭에 다시 들어올 때마다 새로 불러옴
-  const { data: inbox = [], error, reload } = useApi(() => inboxApi.list(), []);
+  const { data, error, reload } = useApi(() => inboxApi.list(), []);
+  const inbox = data ?? [];
   useFocusEffect(reload);
   const isOpen = (r: ReceivedEmotion) => r.opened || opened.has(r.id);
   const fresh = inbox.filter((r) => !isOpen(r));
+  // 목록을 새로 받으면 반응 탭 숫자도 바로 맞춤 (15초 확인을 기다리지 않게)
+  useEffect(() => {
+    if (data) setUnreadIds(data.filter((r) => !r.opened).map((r) => r.id));
+  }, [data]);
   const past = inbox.filter(isOpen);
 
   return (
