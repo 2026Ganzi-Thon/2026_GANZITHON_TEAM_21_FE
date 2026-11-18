@@ -32,9 +32,13 @@ export function useCareCard(): { stage: 0 | 1 | 2; noticeId: string | null } {
   return notice ? { stage: notice.level, noticeId: notice.id } : { stage: 0, noticeId: null };
 }
 
+// 기획 확정 문구 (11/18): 제목은 상세 화면과 같음
 const COPY = {
-  1: { title: '요즘 마음이 조금 무거웠나 봐요', sub: '나를 돌보는 작은 방법을 볼까요' },
-  2: { title: '혼자 견디지 않아도 괜찮아요', sub: '이야기 나눌 수 있는 곳을 알려드릴게요' },
+  1: { title: '최근 마음이 조금 지쳐 있지는 않나요?', sub: '나를 돌보는 방법 보기' },
+  2: {
+    title: '혼자 감당하기 어렵다면, 전문적인 도움을 받아보세요.',
+    sub: '도움받을 수 있는 곳 보기',
+  },
 } as const;
 
 export default function CareCard({ stage, noticeId }: { stage: 1 | 2; noticeId: string | null }) {
@@ -43,7 +47,7 @@ export default function CareCard({ stage, noticeId }: { stage: 1 | 2; noticeId: 
   const open = () => {
     if (noticeId) void ackCare(noticeId, 'VIEWED');
     dismissCareCard();
-    router.navigate('/care');
+    router.navigate({ pathname: '/care', params: { stage: String(stage) } });
   };
   const close = () => {
     if (noticeId) void ackCare(noticeId, 'DISMISSED');

@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,97 +8,75 @@ import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
 
-const TIPS = [
-  { title: '천천히 숨 고르기', body: '4초 동안 들이쉬고 6초 동안 내쉬기를 몇 번 반복해보세요.' },
-  {
-    title: '잠깐 바깥 공기 쐬기',
-    body: '가볍게 걷거나 햇볕을 쬐는 것만으로도 기분이 조금 달라질 수 있어요.',
-  },
-  { title: '좋아하는 소리 듣기', body: '받은 구슬의 음악을 다시 들어보는 것도 좋아요.' },
-  {
-    title: '마음 나누기',
-    body: '믿을 수 있는 사람에게 지금 감정을 구슬로 보내보세요.',
-    action: 'send',
-  },
-] as const;
+// 기획 확정 문구 (11/18, 케어 안내 문구 및 링크). 사전 정의 고정 콘텐츠, AI 생성 문구 없음
+const SELF_CARE = {
+  title: '최근 마음이 조금 지쳐 있지는 않나요?',
+  body: '요즘 반복해서 느끼는 감정이 있다면 잠시 멈춰 자신의 마음을 돌아보는 시간을 가져보세요.',
+  tips: [
+    '잠깐 산책하거나 편안하게 휴식하기',
+    '지금 느끼는 감정을 글로 적어보기',
+    '믿을 수 있는 사람에게 마음 나누기',
+  ],
+  closing: '작은 휴식만으로도 마음을 돌보는 시작이 될 수 있어요.',
+};
 
-// TODO: 연동 전에 기획과 최종 문구·연락처 확인
-const SUPPORT = [
-  { title: '정신건강 상담전화', body: '24시간 전문 상담', tel: '1577-0199' },
-  { title: '자살예방 상담전화', body: '마음이 많이 힘들 때 24시간', tel: '109' },
-  { title: '가까운 정신건강복지센터', body: '지역 센터에서 무료 상담을 받을 수 있어요' },
-  { title: '학교·회사 상담센터', body: '학생상담센터나 회사 상담 프로그램도 이용해보세요' },
-];
+const SUPPORT = {
+  title: '혼자 감당하기 어렵다면, 전문적인 도움을 받아보세요.',
+  body: '반복되는 감정으로 일상에 어려움을 느낀다면 전문가와 이야기를 나누어 보는 것도 좋은 방법이에요.',
+  line: { name: '정신건강위기상담전화', tel: '1577-0199', desc: '24시간 정신건강 상담' },
+  portal: 'https://www.mentalhealth.go.kr/', // 국가정신건강정보포털
+};
 
-// 마음 돋보기 (케어 넛지 자세히, PRD 6장)
-// 1단계: 자기돌봄 안내가 먼저 / 2단계: 전문 지원 정보가 먼저
+// 마음 돋보기 (케어 안내 상세)
+// 1단계: 자기돌봄 방법 / 2단계: 전문 지원 정보 + 기관 링크
+// 홈 카드에서 오면 그 카드 단계, 메뉴에서 오면 지금 조건 단계 (조건 없으면 1단계 내용)
 export default function CareScreen() {
-  // 카드를 닫았어도 이 화면에선 단계가 보이게 직접 계산
-  const stage = useRawCareStage();
-  const supportFirst = stage === 2;
-
-  const tips = (
-    <Section title="나를 돌보는 작은 방법">
-      {TIPS.map((t) => (
-        <Pressable
-          key={t.title}
-          disabled={!('action' in t)}
-          onPress={() => router.navigate('/send')}
-          style={styles.item}
-        >
-          <Text style={styles.itemTitle}>
-            {t.title}
-            {'action' in t ? '  ›' : ''}
-          </Text>
-          <Text style={styles.itemBody}>{t.body}</Text>
-        </Pressable>
-      ))}
-    </Section>
-  );
-
-  const support = (
-    <Section title="이야기 나눌 수 있는 곳">
-      {SUPPORT.map((s) => (
-        <Pressable
-          key={s.title}
-          disabled={!s.tel}
-          onPress={() => s.tel && Linking.openURL(`tel:${s.tel}`)}
-          style={styles.item}
-        >
-          <View style={styles.supportRow}>
-            <Text style={styles.itemTitle}>{s.title}</Text>
-            {s.tel && <Text style={styles.tel}>{s.tel}</Text>}
-          </View>
-          <Text style={styles.itemBody}>{s.body}</Text>
-        </Pressable>
-      ))}
-    </Section>
-  );
+  const params = useLocalSearchParams<{ stage?: string }>();
+  const current = useRawCareStage();
+  const stage = params.stage === '2' || (!params.stage && current === 2) ? 2 : 1;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <AppHeader title="마음 돋보기" />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.lead}>
-          {supportFirst ? '혼자 견디지 않아도 괜찮아요' : '요즘 마음이 조금 무거웠나 봐요'}
-        </Text>
-        <Text style={styles.leadSub}>
-          최근 {supportFirst ? '2주' : '일주일'} 동안 불안·외로움·지침 같은 감정을 자주 골랐어요.
-          {'\n'}
-          {supportFirst
-            ? '편하게 이야기할 수 있는 곳이 있어요.'
-            : '오늘은 나를 조금 더 챙겨주는 건 어떨까요?'}
-        </Text>
-
-        {supportFirst ? (
+        {stage === 1 ? (
           <>
-            {support}
-            {tips}
+            <Text style={styles.lead}>{SELF_CARE.title}</Text>
+            <Text style={styles.leadSub}>{SELF_CARE.body}</Text>
+            <View style={[styles.card, styles.section]}>
+              {SELF_CARE.tips.map((t) => (
+                <View key={t} style={styles.item}>
+                  <Text style={styles.itemTitle}>• {t}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.closing}>{SELF_CARE.closing}</Text>
           </>
         ) : (
           <>
-            {tips}
-            {support}
+            <Text style={styles.lead}>{SUPPORT.title}</Text>
+            <Text style={styles.leadSub}>{SUPPORT.body}</Text>
+            <View style={[styles.card, styles.section]}>
+              <Pressable
+                onPress={() => Linking.openURL(`tel:${SUPPORT.line.tel}`)}
+                accessibilityRole="button"
+                accessibilityLabel={`${SUPPORT.line.name} ${SUPPORT.line.tel} 전화하기`}
+                style={styles.item}
+              >
+                <View style={styles.supportRow}>
+                  <Text style={styles.itemTitle}>{SUPPORT.line.name}</Text>
+                  <Text style={styles.tel}>{SUPPORT.line.tel}</Text>
+                </View>
+                <Text style={styles.itemBody}>{SUPPORT.line.desc}</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              onPress={() => Linking.openURL(SUPPORT.portal)}
+              accessibilityRole="link"
+              style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.linkLabel}>기관 정보 확인 (국가정신건강정보포털)</Text>
+            </Pressable>
           </>
         )}
 
@@ -108,15 +86,6 @@ export default function CareScreen() {
         </Text>
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.card}>{children}</View>
-    </View>
   );
 }
 
@@ -136,13 +105,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   section: { marginTop: 24 },
-  sectionTitle: {
-    marginBottom: 7,
-    marginLeft: -3,
-    fontFamily: Fonts.medium,
-    fontSize: 13,
-    color: '#808B9F',
-  },
   card: { borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' },
   item: {
     paddingVertical: 13,
@@ -159,6 +121,23 @@ const styles = StyleSheet.create({
     color: '#91969D',
   },
   supportRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  closing: {
+    marginTop: 16,
+    fontFamily: Fonts.medium,
+    fontSize: 13,
+    lineHeight: 20,
+    color: Colors.textSecondary,
+  },
+  linkButton: {
+    marginTop: 14,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4F6A7A',
+  },
+  linkLabel: { fontFamily: Fonts.medium, fontSize: 14, color: Colors.textActive },
+  pressed: { opacity: 0.8 },
   tel: { fontFamily: Fonts.semiBold, fontSize: 13.3, color: Colors.lime400 },
   note: {
     marginTop: 22,
