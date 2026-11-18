@@ -255,6 +255,18 @@ export default function SendScreen() {
       },
     });
 
+  // ← 뒤로 가기: 음악 넣기 → 색 다시 고르기, 음악 고르기 → 음악 넣기, 음악 구슬 → 음악 다시 고르기
+  const onBack = () => {
+    music.stop();
+    if (step === 'ask') setStep('pick');
+    else if (step === 'sound') setStep('ask');
+    else if (step === 'ready') {
+      setHasMusic(false);
+      setStep('sound');
+    }
+  };
+  const canGoBack = step === 'ask' || step === 'sound' || step === 'ready';
+
   const onDone = () => {
     reset();
     router.navigate('/');
@@ -291,6 +303,25 @@ export default function SendScreen() {
         style={[styles.stage, (isLowerStep || isSmallOrb) && styles.stageTall]}
         pointerEvents="box-none"
       >
+        {canGoBack && (
+          <Pressable
+            onPress={onBack}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="뒤로 가기"
+            style={({ pressed }) => [styles.back, pressed && styles.pressed]}
+          >
+            <Image source={Icons.back} style={styles.backIcon} contentFit="contain" />
+            <Text style={styles.backText}>
+              {step === 'ask'
+                ? '감정 다시 고르기'
+                : step === 'sound'
+                  ? '뒤로 가기'
+                  : '음악 다시 고르기'}
+            </Text>
+          </Pressable>
+        )}
+
         {step === 'pick' && (
           <View
             style={[
@@ -507,6 +538,18 @@ const styles = StyleSheet.create({
   stage: { height: STAGE_HEIGHT, zIndex: 5 },
   stageTall: { height: PANEL_TOP + 230 },
   wheel: { position: 'absolute' },
+  // 왼쪽 위 뒤로 가기 (구슬 위, 헤더 아래)
+  back: {
+    position: 'absolute',
+    top: 6,
+    left: 22,
+    zIndex: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  backIcon: { width: 13, height: 17 },
+  backText: { fontFamily: Fonts.regular, fontSize: 14, color: Colors.textSecondary },
   orb: { position: 'absolute' },
   plus: { width: 83, height: 83 },
   panel: { position: 'absolute', left: 0, right: 0, top: PANEL_TOP, alignItems: 'center' },
