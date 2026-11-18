@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -103,12 +103,19 @@ export default function SendScreen() {
       Number(!!a.color && emotions.includes(a.color)),
   );
   const sound = allSounds.find((x) => x.id === soundId);
-  const music = useOrbMusic(sound ? [sound.source] : undefined);
+  // 곡 목록은 고른 음악이 바뀔 때만 새로 만듦
+  // (매번 새 배열이면 재생 함수도 매번 새로 생겨서, 아래 미리듣기가 계속 다시 실행되며 화면이 떨렸음)
+  const tracks = useMemo(() => (sound ? [sound.source] : undefined), [sound]);
+  const music = useOrbMusic(tracks);
 
-  // 음악을 고르면 바로 미리듣기
+  // 음악을 고르면 바로 미리듣기 (고른 음악·단계가 바뀔 때 한 번만)
+  const playRef = useRef(music.play);
   useEffect(() => {
-    if (step === 'sound' && soundId) music.play();
-  }, [step, soundId, music.play]); // eslint-disable-line react-hooks/exhaustive-deps
+    playRef.current = music.play;
+  });
+  useEffect(() => {
+    if (step === 'sound' && soundId) playRef.current();
+  }, [step, soundId]);
 
   const toggleEmotion = (key: EmotionKey) => {
     setEmotions((prev) => {
@@ -487,7 +494,10 @@ export default function SendScreen() {
             ) : (
               sounds.length === 0 && <Text style={styles.note}>등록된 음악이 없어요.</Text>
             )}
-            {music.loading && <Text style={styles.note}>음악 불러오는 중…</Text>}
+            {/* 높이 0 칸에 띄워서 문구가 나왔다 사라져도 아래 버튼이 움직이지 않게 */}
+            <View style={styles.loadingSlot}>
+              {music.loading && <Text style={styles.loadingText}>음악 불러오는 중…</Text>}
+            </View>
             <View style={styles.sentButtons}>
               <Pressable
                 onPress={onlyOrb}
@@ -651,6 +661,14 @@ const styles = StyleSheet.create({
   btnLabel: { fontFamily: Fonts.medium, fontSize: 14, color: Colors.textActive },
   note: { marginTop: 12, fontFamily: Fonts.regular, fontSize: 11, color: Colors.textMuted },
   playButton: { alignItems: 'center', marginTop: 12, marginBottom: 8 },
+  loadingSlot: { height: 0, alignSelf: 'stretch', alignItems: 'center' },
+  loadingText: {
+    position: 'absolute',
+    top: 5,
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
   // 샘플 음악 칩 (2줄로)
   soundGrid: {
     flexDirection: 'row',
