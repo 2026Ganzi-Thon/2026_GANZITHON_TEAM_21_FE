@@ -252,10 +252,9 @@ def route(m, p, q, b, uid, key):
         lid = q.get("loginId", "").lower()
         return 200, {"loginId": lid, "available": not any(u["loginId"] == lid for u in users.values())}
     if m == "POST" and p == "/auth/signup":
-        if (e := only(b, ["loginId", "password", "nickname", "birthDate"])):
+        # 실제 서버(v0.5)처럼 가입에는 birthDate 를 안 받음 → PUT /me/birth-date 로 따로
+        if (e := only(b, ["loginId", "password", "nickname"])):
             return e
-        if not valid_birth(b.get("birthDate")):
-            return err("INVALID_INPUT", "생년월일을 확인해주세요.", 422, field="birthDate")
         lid = (b.get("loginId") or "").strip().lower()
         pw = b.get("password") or ""
         import re
@@ -264,7 +263,7 @@ def route(m, p, q, b, uid, key):
         if any(u["loginId"] == lid for u in users.values()):
             return err("LOGIN_ID_IN_USE", "이미 사용 중인 아이디예요.", 409)
         new = {"id": nid("u"), "loginId": lid, "password": pw, "nickname": (b.get("nickname") or lid).strip(),
-               "birthDate": b["birthDate"]}
+               "birthDate": None}
         users[new["id"]] = new
         seed_for(new["id"])
         return 201, {"user": me_json(new), "session": session_for(new["id"])}

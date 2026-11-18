@@ -58,15 +58,14 @@ export const auth = {
   },
   // 가입: 닉네임을 안 보내면 서버가 아이디로 채움
   // 생년월일 'YYYY-MM-DD' → 서버가 만 19세 이상인지 판정 (기획 결정 11/16, 본인 입력)
+  // ※ 서버(v0.5)는 아직 가입에 birthDate 를 안 받음 (모르는 필드는 422) → 가입 후 따로 저장
+  //   PUT /me/birth-date 가 생기면 그대로 동작, 없으면 무시 (익명 켤 때 다시 물어봄)
   async signup(loginId: string, password: string, birthDate: string) {
     if (USE_MOCK) return signIn('mock-token');
-    const { data } = await http.post<{ session: S.Session }>('/auth/signup', {
-      loginId,
-      password,
-      birthDate,
-    });
+    const { data } = await http.post<{ session: S.Session }>('/auth/signup', { loginId, password });
     const { accessToken, refreshToken, expiresIn } = data.session;
     await signIn(accessToken, refreshToken, expiresIn);
+    await http.put('/me/birth-date', { birthDate }).catch(() => {});
   },
   // 아이디 중복 확인 (GET /auth/login-id-availability)
   async available(loginId: string): Promise<boolean> {
@@ -103,8 +102,9 @@ export const me = {
     return {
       name: data.nickname || data.loginId,
       friendCode: data.friendCode,
-      adult: data.adultStatus === 'VERIFIED_19_PLUS',
-      needsBirthDate: data.adultStatus === 'UNKNOWN', // 생년월일을 아직 안 받은 기존 가입자
+      // 자기신고 성인 상태는 서버가 새 이름을 정할 예정 → UNKNOWN·INELIGIBLE 이 아니면 성인으로
+      adult: data.adultStatus !== 'UNKNOWN' && data.adultStatus !== 'INELIGIBLE',
+      needsBirthDate: data.adultStatus === 'UNKNOWN', // 생년월일을 아직 안 받은 계정
     };
   },
   async rename(nickname: string) {
@@ -118,7 +118,7 @@ export const me = {
       return isAdult(birthDate);
     }
     const { data } = await http.put<S.Me>('/me/birth-date', { birthDate });
-    return data.adultStatus === 'VERIFIED_19_PLUS';
+    return data.adultStatus !== 'UNKNOWN' && data.adultStatus !== 'INELIGIBLE';
   },
 };
 

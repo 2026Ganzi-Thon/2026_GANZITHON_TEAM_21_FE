@@ -124,7 +124,8 @@ export type Me = {
   loginId: string;
   nickname: string;
   friendCode: string;
-  adultStatus: 'UNKNOWN' | 'VERIFIED_19_PLUS' | 'INELIGIBLE'; // UNKNOWN = 생년월일 없음
+  // UNKNOWN = 생년월일 없음. 자기신고 성인은 서버가 새 값을 추가할 예정 (string 으로 열어둠)
+  adultStatus: 'UNKNOWN' | 'VERIFIED_19_PLUS' | 'INELIGIBLE' | (string & {});
 };
 
 export type Session = { accessToken: string; refreshToken: string; expiresIn: number };
