@@ -1,0 +1,276 @@
+import { Image } from 'expo-image';
+import { router, useFocusEffect } from 'expo-router';
+import { Fragment, useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { toApiError } from '@/api/client';
+import { auth, me, settings as settingsApi } from '@/api/emori';
+import AppHeader from '@/components/AppHeader';
+import BirthDateSheet from '@/components/BirthDateSheet';
+import ServerUrlSheet from '@/components/ServerUrlSheet';
+import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
+import Toggle from '@/components/Toggle';
+import { Icons } from '@/constants/assets';
+import { Colors } from '@/constants/colors';
+import { Fonts } from '@/constants/typography';
+import { useApi } from '@/hooks/useApi';
+import { setCareEnabled, useCare } from '@/stores/careStore';
+import { dateLabel, hydrateRest, isResting, useRest } from '@/stores/restStore';
+import { notify, confirm } from '@/utils/dialog';
+
+type ToggleKey = 'anonymous' | 'push' | 'mindLens' | 'swipeMusic';
+
+type Row =
+  | { kind: 'toggle'; key: ToggleKey; title: string; desc: string }
+  | { kind: 'link'; title: string; desc: string };
+
+const SECTIONS: { title: string; rows: Row[] }[] = [
+  {
+    title: '계정',
+    rows: [
+      { kind: 'link', title: '연동 된 계정 확인', desc: 'EmOri와 연동 된 타 플랫폼의 계정을 관리' },
+      { kind: 'link', title: '정보 수정', desc: '아이디·비밀번호 등 보안 정보 확인 및 수정' },
+    ],
+  },
+  {
+    title: '보내기 & 받기',
+    rows: [
+      {
+        kind: 'toggle',
+        key: 'anonymous',
+        title: '익명 구슬 주고받기',
+        desc: '익명으로 감정을 보내고 받기 (만 19세 이상)',
+      },
+    ],
+  },
+  {
+    title: '알림과 휴식',
+    rows: [
+      { kind: 'toggle', key: 'push', title: '알림', desc: '모든 PUSH 알림을 받기' },
+      { kind: 'link', title: '잠시 쉬기', desc: '알림이 꺼지는 시간을 정하기' },
+      {
+        kind: 'link',
+        title: '조용히 들어주는 시간',
+        desc: '자동으로 조용히 들어주기가 활성화 되는 시간을 정하기',
+      },
+    ],
+  },
+  {
+    title: '도움과 소리',
+    rows: [
+      {
+        kind: 'toggle',
+        key: 'mindLens',
+        title: '마음 돋보기 안내',
+        desc: '반복되는 무거운 감정에 대해 안내받기',
+      },
+      {
+        kind: 'toggle',
+        key: 'swipeMusic',
+        title: '구슬 음악 듣기',
+        desc: '음악이 들은 구슬은 스와이프로 재생하기',
+      },
+    ],
+  },
+];
+
+// 햄버거 > 설정 / 헤더 ⚙︎ (피그마 '설정')
+export default function SettingsScreen() {
+  // 서버 설정 (GET /me/settings): 익명 받기·알림·휴식. 목업이면 null
+  const server = useApi(() => settingsApi.get(), []);
+  useFocusEffect(server.reload); // 보내기 화면에서 익명을 켰으면 여기도 반영
+  useEffect(() => {
+    if (server.data) hydrateRest(server.data.rest);
+  }, [server.data]);
+
+  const [values, setValues] = useState<Partial<Record<ToggleKey, boolean>>>({});
+  const defaults: Record<ToggleKey, boolean> = {
+    anonymous: server.data?.anonymousEnabled ?? false, // PRD 5-2: 익명은 기본 꺼짐
+    push: server.data?.pushEnabled ?? true,
+    mindLens: true,
+    swipeMusic: true,
+  };
+
+  const set = (key: ToggleKey, next: boolean) => {
+    if (key === 'mindLens') setCareEnabled(next); // 홈 케어 카드와 연결
+    setValues((prev) => ({ ...prev, [key]: next }));
+    if (key !== 'anonymous' && key !== 'push') return;
+    // 서버 저장 (PATCH /me/settings). 실패하면 되돌림
+    const body = key === 'anonymous' ? { anonymousEnabled: next } : { pushEnabled: next };
+    settingsApi.patch(body).catch((e) => {
+      setValues((prev) => ({ ...prev, [key]: !next }));
+      const err = toApiError(e);
+      notify(
+        err.code === 'AGE_REQUIRED' ? '만 19세 이상만 쓸 수 있어요.' : '설정을 저장하지 못했어요.',
+        err.code === 'AGE_REQUIRED' ? undefined : err.message,
+      );
+    });
+  };
+  const care = useCare();
+  const rest = useRest();
+  // 잠시 쉬기 줄 설명에 지금 상태 표시
+  const restDesc =
+    rest.mode === 'now'
+      ? '지금 쉬는 중'
+      : rest.mode === 'scheduled'
+        ? `${isResting(rest) ? '쉬는 중' : '예약됨'} · ${dateLabel(rest.from)} ~ ${dateLabel(rest.to)}`
+        : undefined;
+  const valueOf = (key: ToggleKey) =>
+    key === 'mindLens' ? care.enabled : (values[key] ?? defaults[key]);
+
+  // 생년월일 없이 가입한 계정은 익명을 처음 켤 때 입력 (기획 결정 11/16)
+  const [birthOpen, setBirthOpen] = useState(false);
+  // 숨은 메뉴: '도움과 소리' 제목을 2초 길게 누르면 서버 주소 바꾸기
+  const [serverOpen, setServerOpen] = useState(false);
+  const onBirthDate = (birthDate: string) => {
+    me.setBirthDate(birthDate) // PUT /me/birth-date
+      .then((adult) => {
+        if (adult) set('anonymous', true);
+        else notify('만 19세 이상만 쓸 수 있어요.', '익명 구슬은 만 19세부터 주고받을 수 있어요.');
+      })
+      .catch((e) => notify('생년월일을 저장하지 못했어요.', toApiError(e).message));
+  };
+
+  const onToggle = (key: ToggleKey, next: boolean) => {
+    // 익명은 보내기·받기 한 번에 켜고 끔 (세부 정책 1-2), 만 19세 이상만 (서버가 AGE_REQUIRED 로 막음)
+    if (key === 'anonymous' && next) {
+      me.get()
+        .then((profile) => {
+          if (profile.needsBirthDate) return setBirthOpen(true);
+          if (!profile.adult) return notify('만 19세 이상만 쓸 수 있어요.');
+          confirm({
+            title: '익명 구슬 주고받기',
+            message: '켜면 모르는 사람과 익명으로 감정 구슬을 보내고 받을 수 있어요.',
+            okText: '켜기',
+            onOk: () => set(key, true),
+          });
+        })
+        .catch((e) => notify('확인하지 못했어요.', toApiError(e).message));
+      return;
+    }
+    set(key, next);
+  };
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <AppHeader title="설정" />
+
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {SECTIONS.map((section) => (
+          <View key={section.title} style={styles.section}>
+            <Pressable
+              onLongPress={section.title === '도움과 소리' ? () => setServerOpen(true) : undefined}
+              delayLongPress={2000}
+            >
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+            </Pressable>
+            <View style={styles.card}>
+              {section.rows.map((row, i) => (
+                <Fragment key={row.title}>
+                  {i > 0 && <View style={styles.divider} />}
+                  <Pressable
+                    disabled={row.kind === 'toggle'}
+                    onPress={
+                      () =>
+                        row.title === '잠시 쉬기'
+                          ? router.navigate('/rest')
+                          : notify(row.title, '준비 중이에요.') // TODO: 상세 화면
+                    }
+                    style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                  >
+                    <View style={styles.texts}>
+                      <Text style={styles.rowTitle}>{row.title}</Text>
+                      <Text style={styles.rowDesc} numberOfLines={1}>
+                        {row.title === '잠시 쉬기' && restDesc ? restDesc : row.desc}
+                      </Text>
+                    </View>
+                    {row.kind === 'toggle' ? (
+                      <View style={styles.toggle}>
+                        <Toggle
+                          value={valueOf(row.key)}
+                          onChange={(next) => onToggle(row.key, next)}
+                          accessibilityLabel={row.title}
+                        />
+                      </View>
+                    ) : (
+                      <Image
+                        source={Icons.chevronLeft}
+                        style={styles.chevron}
+                        contentFit="contain"
+                      />
+                    )}
+                  </Pressable>
+                </Fragment>
+              ))}
+            </View>
+          </View>
+        ))}
+
+        <Pressable
+          onPress={() =>
+            confirm({
+              title: '로그아웃할까요?',
+              okText: '로그아웃',
+              destructive: true,
+              onOk: async () => {
+                await auth.logout();
+                router.replace('/login');
+              },
+            })
+          }
+          style={({ pressed }) => [styles.logout, pressed && styles.pressed]}
+        >
+          <Text style={styles.logoutText}>로그아웃</Text>
+        </Pressable>
+      </ScrollView>
+
+      <ServerUrlSheet visible={serverOpen} onClose={() => setServerOpen(false)} />
+      <BirthDateSheet
+        visible={birthOpen}
+        onSubmit={onBirthDate}
+        onClose={() => setBirthOpen(false)}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: Colors.background },
+  content: {
+    paddingHorizontal: 29,
+    paddingTop: 21,
+    paddingBottom: TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_GAP + 60,
+    gap: 17,
+  },
+  section: { gap: 7 },
+  sectionTitle: {
+    marginLeft: -3,
+    fontFamily: Fonts.medium,
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#808B9F',
+  },
+  card: { borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: 8.7,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  row: {
+    height: 53.3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 18,
+    paddingRight: 8.4,
+  },
+  pressed: { backgroundColor: 'rgba(255,255,255,0.04)' },
+  texts: { flex: 1, gap: 5 },
+  rowTitle: { fontFamily: Fonts.medium, fontSize: 13.3, color: '#EBECEE' },
+  rowDesc: { fontFamily: Fonts.regular, fontSize: 10.7, color: '#91969D' },
+  toggle: { marginRight: 16.6 },
+  logout: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
+  logoutText: { fontFamily: Fonts.medium, fontSize: 13, color: '#91969D' },
+  // 피그마 chevron.left 를 좌우 반전 → ›
+  chevron: { width: 6.5, height: 10.6, marginRight: 1, transform: [{ scaleX: -1 }] },
+});

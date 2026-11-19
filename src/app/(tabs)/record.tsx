@@ -1,42 +1,51 @@
 import { Image } from 'expo-image';
+import { useFocusEffect } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { records } from '@/api/emori';
 import AppHeader from '@/components/AppHeader';
+import LoadError from '@/components/LoadError';
 import RecordSheet from '@/components/RecordSheet';
+import ViewMenu from '@/components/ViewMenu';
 import { TAB_BAR_BOTTOM_GAP, TAB_BAR_HEIGHT } from '@/components/TabBar';
 import { Colors } from '@/constants/colors';
 import { getEmotion, orbImageStyle } from '@/constants/emotions';
 import { Fonts } from '@/constants/typography';
-import { mockRecordStartLabel, mockWeeks } from '@/mocks/record';
+import { useApi } from '@/hooks/useApi';
+import { mockViews } from '@/mocks/home';
+import { setViewIndex, useViewIndex } from '@/stores/viewStore';
 import type { WeekRecord } from '@/types/emotion';
 
 const PER_ROW = 4;
 const SOCKET = 66; // 구슬 자리(검은 원)
 const ORB_VISIBLE = 60;
+const BAND = 100; // 구슬 뒤 띠 높이
+const COL_LEFT = 44; // 첫 칸 왼쪽 (칸 너비 80 → 구슬 중심 84)
 
 // 주차별 기록 (피그마 '주차별_기록', 기능명세 AR-06)
 // - 한 주 = 구슬 하나, 4개씩 한 줄 / 구슬 누르면 그 주의 상세 기록 팝업
 export default function RecordScreen() {
-  const weeks = mockWeeks; // TODO: 감정 기록 API
+  const index = useViewIndex(); // 메인에서 고른 화면(내 감정 / 전체 감정) 그대로
+  const view = mockViews[index];
+  // GET /records → 월요일 시작 12주로 묶음 (탭에 돌아올 때마다 새로)
+  const book = useApi(() => records(view.kind), [view.kind]);
+  useFocusEffect(book.reload);
+  const weeks = book.data?.weeks ?? [];
   const [openWeek, setOpenWeek] = useState<WeekRecord | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const rows: WeekRecord[][] = [];
   for (let i = 0; i < weeks.length; i += PER_ROW) rows.push(weeks.slice(i, i + PER_ROW));
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppHeader
-        title="그룹"
-        subtitle="기록장"
-        onPressTitle={() => {
-          // TODO: 그룹 ↔ 내 감정 전환
-        }}
-      />
+      <AppHeader title={view.title} subtitle="기록장" onPressTitle={() => setMenuOpen(true)} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.start}>{mockRecordStartLabel}</Text>
+        <Text style={styles.start}>{book.data?.startLabel ?? ' '}</Text>
+        {book.error && <LoadError error={book.error} onRetry={book.reload} />}
 
         {rows.map((row, r) => (
           <View key={r} style={styles.rowBlock}>
@@ -74,7 +83,15 @@ export default function RecordScreen() {
         ))}
       </ScrollView>
 
-      <RecordSheet week={openWeek} onClose={() => setOpenWeek(null)} />
+      <RecordSheet week={openWeek} mode={view.kind} onClose={() => setOpenWeek(null)} />
+
+      <ViewMenu
+        visible={menuOpen}
+        items={mockViews.map((v) => v.title)}
+        selectedIndex={index}
+        onSelect={setViewIndex}
+        onClose={() => setMenuOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -85,26 +102,28 @@ const styles = StyleSheet.create({
   content: { paddingTop: 22, paddingBottom: TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_GAP + 20 },
   start: {
     marginLeft: 42,
-    marginBottom: 14,
+    marginBottom: 15.3, // 띠 위쪽 y = 164.3 (피그마)
     fontFamily: Fonts.semiBold,
     fontSize: 14,
+    lineHeight: 19,
     color: Colors.textPrimary,
   },
-  rowBlock: { marginBottom: 38 },
+  rowBlock: { marginBottom: 36.7 }, // 줄 간격 170.7 (피그마)
   band: {
     position: 'absolute',
     top: 0,
-    left: 20,
+    left: 29, // 피그마 띠 시작 x
     right: -40,
-    height: 94,
-    borderRadius: 47,
+    height: BAND,
+    borderRadius: BAND / 2,
     backgroundColor: '#1A1A1A',
     shadowColor: '#080808',
     shadowOffset: { width: 10, height: 10 },
     shadowOpacity: 0.9,
     shadowRadius: 20,
   },
-  orbRow: { height: 94, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  // 피그마 구슬 중심 x = 84 / 164 / 244 / 324 (화면 가운데보다 7.5 오른쪽)
+  orbRow: { height: BAND, flexDirection: 'row', alignItems: 'center', paddingLeft: COL_LEFT },
   cell: { width: 80, alignItems: 'center' },
   socket: {
     width: SOCKET,
@@ -115,12 +134,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  labelRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 18 },
+  labelRow: { flexDirection: 'row', paddingLeft: COL_LEFT, marginTop: 15 },
   weekLabel: {
     width: 80,
     textAlign: 'center',
     fontFamily: Fonts.semiBold,
     fontSize: 14,
+    lineHeight: 19,
     color: Colors.textPrimary,
   },
 });

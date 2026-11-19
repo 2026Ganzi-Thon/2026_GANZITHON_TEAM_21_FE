@@ -13,3 +13,10 @@ export const Colors = {
   shadowDark: '#080808',
   shadowLight: '#222222',
 } as const;
+
+// 볼록한 카드 (프로필 이름/ID, 소셜 목록 줄)
+export const NeuCard = {
+  backgroundColor: '#1E1E1E',
+  boxShadow:
+    '-6px 6px 12px rgba(12,12,12,0.2), 6px -6px 12px rgba(12,12,12,0.2), -6px -6px 12px rgba(48,48,48,0.9), 6px 6px 16px rgba(12,12,12,0.9)',
+} as const;

@@ -24,13 +24,26 @@ type Props = {
   playing: boolean;
   onPlay: () => void;
   onStop: () => void;
+  onTap?: () => void; // 짧게 탭 → 상세 기록 팝업 (PRD 4-5 표)
   children: ReactNode;
 };
 
-export default function MusicOrb({ size, enabled, playing, onPlay, onStop, children }: Props) {
+export default function MusicOrb({
+  size,
+  enabled,
+  playing,
+  onPlay,
+  onStop,
+  onTap,
+  children,
+}: Props) {
   const rotation = useSharedValue(0);
   const prevAngle = useSharedValue(0);
   const turned = useSharedValue(0); // 이번 제스처에서 돌린 총 각도
+  const active = useSharedValue(enabled); // 제스처 안에서도 '음악 있음'을 한 번 더 확인
+  useEffect(() => {
+    active.set(enabled);
+  }, [enabled, active]);
   const c = size / 2;
 
   const startSpin = useCallback(() => {
@@ -49,6 +62,15 @@ export default function MusicOrb({ size, enabled, playing, onPlay, onStop, child
     else cancelAnimation(rotation);
   }, [playing, startSpin, rotation]);
 
+  // 음악이 없는 상태(다른 구슬·빈 + 화면)로 바뀌면 돌아간 각도를 원래대로
+  // (안 하면 이전 구슬을 돌린 각도 그대로 + 아이콘이 기울어져 보임)
+  useEffect(() => {
+    if (!enabled) {
+      cancelAnimation(rotation);
+      rotation.set(0);
+    }
+  }, [enabled, rotation]);
+
   const onGestureEnd = (deg: number) => {
     if (deg >= PLAY_DEG) onPlay();
     else if (deg <= STOP_DEG) onStop();
@@ -64,6 +86,7 @@ export default function MusicOrb({ size, enabled, playing, onPlay, onStop, child
       turned.value = 0;
     })
     .onUpdate((e) => {
+      if (!active.get()) return;
       const a = Math.atan2(e.y - c, e.x - c);
       let d = a - prevAngle.value;
       if (d > Math.PI) d -= 2 * Math.PI;
@@ -74,16 +97,32 @@ export default function MusicOrb({ size, enabled, playing, onPlay, onStop, child
       prevAngle.value = a;
     })
     .onEnd(() => {
+      if (!active.get()) return;
       scheduleOnRN(onGestureEnd, turned.value);
     });
+
+  // 짧게 탭: 돌리기(pan)랑 경쟁해서 먼저 인식된 쪽만 동작
+  const tap = Gesture.Tap()
+    .enabled(!!onTap)
+    .runOnJS(true)
+    .onEnd((_e, success) => {
+      if (success) onTap?.();
+    });
+  const gesture = Gesture.Race(pan, tap);
 
   const rotateStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.get()}deg` }],
   }));
 
+  // 음악이 없는 구슬(빈 + 화면, 휠에서 고르는 중)은 아예 돌릴 수 없게 제스처를 붙이지 않음
+  // 폰에서 .enabled(false) 여도 구슬을 끌면 같이 돌아가서, 선택을 풀면 + 가 기울어져 보였음
+  if (!enabled && !onTap) {
+    return <View style={{ width: size, height: size }}>{children}</View>;
+  }
+
   return (
     // 제스처는 회전하지 않는 바깥 View 에서 받음 (EmotionWheel 과 같은 이유)
-    <GestureDetector gesture={pan}>
+    <GestureDetector gesture={gesture}>
       <View style={{ width: size, height: size }} collapsable={false}>
         <Animated.View style={[StyleSheet.absoluteFill, rotateStyle]}>{children}</Animated.View>
       </View>

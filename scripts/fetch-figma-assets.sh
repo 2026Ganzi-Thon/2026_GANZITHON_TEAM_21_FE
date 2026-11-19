@@ -45,3 +45,38 @@ dl assets/images/avatars/avatar-2.png     decc094d-6c8c-48dd-aba4-59072b1759a4.p
 # ── 감정 받기 / 반응 ──
 dl assets/icons/check-circle.svg          2c9f3423-6cf0-46d5-86d6-c5dcaf2c4549.svg
 dl assets/icons/headphones.svg            533622bb-1360-4c4f-9a09-bdca5392615f.svg
+
+# ── 내 감정 메인 ──
+dl assets/images/orbs/orb-mine.png        9477ca7e-d2c1-4b48-a641-ec08978287ab.png
+
+# ── 햄버거 메뉴 / 프로필 / 소셜 목록 / 설정 ──
+dl assets/icons/menu-pressed.svg          b73bc081-71e2-45a7-835f-2f8302a16db5.svg
+dl assets/icons/user.svg                  508aee41-925d-470a-9077-9eb01c9fec86.svg
+dl assets/icons/user-group.svg            57b4bb6f-399d-4038-b7e3-4fb211e553e7.svg
+dl assets/icons/credit-card.svg           272e9aa6-7ce8-4647-8286-fd8ff0982592.svg
+dl assets/icons/settings-menu.svg         6e6a1c83-abeb-4ef8-ad76-3575b08b6d80.svg
+dl assets/icons/copy.svg                  c707c1f1-bdf0-4bc5-be0c-0b9c71f964b8.svg
+dl assets/icons/edit.svg                  71e56a56-192d-4f2a-b0b4-23a414a9754b.svg
+dl assets/icons/heart-outline.svg         616d3f5b-5ac8-4eaf-9eb1-bcf43be94a63.svg
+dl assets/icons/x-red.svg                 e85e2b26-ca91-4061-9d27-a9683ba2addc.svg
+dl assets/icons/chevron-left.svg          2af9b88c-a822-40b8-bea8-c986083dc1a9.svg
+
+# ── 친구 추가 ──
+dl assets/icons/circle-plus.svg           e50fc991-7562-47ee-81b7-e51111e2a569.svg
+dl assets/icons/circle-x.svg              fa0a0504-8c8a-4bfa-bb50-a3bfbee9a5f1.svg
+dl assets/icons/scan.svg                  c60daf80-e94b-463c-bcbb-33dcba9de3dc.svg
+dl assets/icons/user-add-white.svg        12131e82-9549-4683-93b7-b3eff0103848.svg
+
+# ── 커버 / 로그인 / 회원가입 ──
+# (logo-emori.png 는 피그마 스크린샷 URL이라 빨리 만료될 수 있음 → 받으면 바로 커밋)
+dl assets/images/logo-emori.png           71e644db-9a41-4576-887a-1a1a2bb270e0.png
+dl assets/images/orbs/deco-pink.png       559209c2-8374-46ab-a593-478f29dec6c9.png
+dl assets/images/orbs/deco-green.png      78ff7829-30e2-4a38-9aa7-b15b2d61168e.png
+dl assets/images/orbs/deco-purple.png     e83e157f-bf39-4b80-bd46-879a9eae8d19.png
+dl assets/images/orbs/deco-gray.png       bb2aaf0e-d34e-4182-94cb-32d39bba48d6.png
+dl assets/icons/google.png                5aab68af-ede1-4898-9e37-c0b14052d2b3.png
+dl assets/icons/naver.svg                 0a7f0438-63a8-49d4-bdc2-c56a043f0acd.svg
+dl assets/icons/phone.svg                 cce18be9-b507-42fe-87f5-11d31f37284d.svg
+
+# ── 알림 ──
+dl assets/images/app-icon.png             db4d81cb-859b-49a3-bef9-1a38b9558d6a.png

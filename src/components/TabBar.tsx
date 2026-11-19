@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icons, Orbs } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
+import { useUnreadCount } from '@/stores/inboxStore';
 
 // 하단 탭바: 반응(♡) / 구슬(가운데 떠 있는 구슬) / 기록(🕒)
 // 피그마 기준 300 x 121, 화면 하단에서 떠 있음
@@ -17,6 +18,7 @@ const LABELS: Record<string, string> = { reaction: '반응', index: '구슬', re
 export default function TabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const sendRoute = state.routes.find((r) => r.name === 'send');
+  const unread = useUnreadCount(); // 안 연 구슬 수 → 반응(♡) 탭 오른쪽 위 숫자
 
   return (
     <View
@@ -67,6 +69,15 @@ export default function TabBar({ state, emitter, navigateToTab }: BottomTabBarPr
               <Text style={[styles.label, focused && styles.labelActive]}>
                 {LABELS[route.name]}
               </Text>
+              {route.name === 'reaction' && unread > 0 && (
+                <View
+                  style={styles.badge}
+                  accessibilityLabel={`새 감정구슬 ${unread}개`}
+                  pointerEvents="none"
+                >
+                  <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
+                </View>
+              )}
             </Pressable>
           );
         })}
@@ -108,4 +119,20 @@ const styles = StyleSheet.create({
   centerOrb: { width: 90, height: 90, position: 'absolute', top: -21 },
   label: { fontFamily: Fonts.semiBold, fontSize: 16, lineHeight: 19, color: Colors.textMuted },
   labelActive: { color: Colors.textActive },
+  // 새 구슬 숫자 (하트 오른쪽 위)
+  badge: {
+    position: 'absolute',
+    top: 12,
+    left: 58,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    backgroundColor: '#E5677D',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.surface,
+  },
+  badgeText: { fontFamily: Fonts.semiBold, fontSize: 10, lineHeight: 12, color: Colors.white },
 });

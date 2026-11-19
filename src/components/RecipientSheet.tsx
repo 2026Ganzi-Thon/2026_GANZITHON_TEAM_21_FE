@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { ApiError } from '@/api/client';
+import LoadError from '@/components/LoadError';
 import { Icons } from '@/constants/assets';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/typography';
@@ -18,16 +20,20 @@ type Props = {
   onBack: () => void; // ‹ 뒤로 가기 → 감정 다시 고르기
   onClose: () => void; // ×
   onSend: () => void;
+  sending?: boolean; // 서버 응답 기다리는 중 → '보내는 중…', 다시 못 누름
+  friendsError?: ApiError; // 친구 목록을 못 불러왔을 때
+  onRetryFriends?: () => void;
+  onAddFriend?: () => void; // 친구가 0명일 때 '친구 추가하러 가기'
 };
 
 const ROUTES: { key: SendRoute; label: string }[] = [
-  { key: 'nearby', label: '가까운 사람' },
+  { key: 'friends', label: '가까운 사람' }, // 친구 목록에서 선택 (거리 조건 없음)
   { key: 'me', label: '나에게' },
   { key: 'anonymous', label: '익명으로' },
 ];
 
 // 경로별 안내 문구 (기능명세 TR-02 / TR-07 / TR-08)
-const ROUTE_INFO: Record<Exclude<SendRoute, 'nearby'>, string[]> = {
+const ROUTE_INFO: Record<Exclude<SendRoute, 'friends'>, string[]> = {
   me: ['감정구슬을 나에게 보관해요.', '내 감정 기록에서 다시 볼 수 있어요.'],
   anonymous: [
     '익명의 사용자 최대 3명에게 전달돼요.',
@@ -37,7 +43,7 @@ const ROUTE_INFO: Record<Exclude<SendRoute, 'nearby'>, string[]> = {
 
 // 공유자 선택 하단 시트 (피그마 '감정_보내기3/4', '가까운_사람_O')
 // - 위쪽 드롭다운으로 전달 경로 선택: 가까운 사람 / 나에게 / 익명으로
-// - 가까운 사람: 근처 조건을 충족한 친구만 선택 가능, 나머지는 '친구 목록'에 흐리게
+// - 가까운 사람: 친구 목록에서 한 명 선택 (세부 정책 2-2: 친구에게는 한 번에 한 명씩)
 export default function RecipientSheet({
   visible,
   route,
@@ -48,20 +54,25 @@ export default function RecipientSheet({
   onBack,
   onClose,
   onSend,
+  sending = false,
+  friendsError,
+  onRetryFriends,
+  onAddFriend,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
   const count = selectedIds.length;
-  const nearby = recipients.filter((r) => r.nearby);
-  const others = recipients.filter((r) => !r.nearby);
+  const selectedName = recipients.find((r) => r.id === selectedIds[0])?.name;
 
   const sendLabel =
     route === 'me'
       ? '나에게 보내기'
       : route === 'anonymous'
         ? '익명으로 보내기'
-        : `${count} 곳에 보내기`;
-  const canSend = route !== 'nearby' || count > 0;
+        : selectedName
+          ? `${selectedName}에게 보내기`
+          : '보낼 친구를 골라주세요';
+  const canSend = route !== 'friends' || count > 0;
 
   const renderRow = (r: Recipient, disabled: boolean) => {
     const on = selectedIds.includes(r.id);
@@ -140,16 +151,23 @@ export default function RecipientSheet({
           )}
         </View>
 
-        {route === 'nearby' ? (
+        {route === 'friends' ? (
           <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-            {nearby.length === 0 && (
-              <Text style={styles.empty}>지금 근처에 있는 친구가 없어요.</Text>
+            {friendsError && onRetryFriends ? (
+              <LoadError error={friendsError} onRetry={onRetryFriends} />
+            ) : (
+              recipients.length === 0 && (
+                <View style={styles.emptyBox}>
+                  <Text style={styles.empty}>아직 친구가 없어요.</Text>
+                  {onAddFriend && (
+                    <Pressable onPress={onAddFriend} hitSlop={10} accessibilityRole="button">
+                      <Text style={styles.addFriend}>친구 추가하러 가기 ›</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )
             )}
-            {nearby.map((r) => renderRow(r, false))}
-            {others.length > 0 && (
-              <Text style={[styles.section, styles.sectionGap]}>친구 목록</Text>
-            )}
-            {others.map((r) => renderRow(r, true))}
+            {recipients.map((r) => renderRow(r, false))}
           </ScrollView>
         ) : (
           <View style={styles.info}>
@@ -159,8 +177,13 @@ export default function RecipientSheet({
         )}
 
         {canSend && (
-          <Pressable style={styles.sendButton} onPress={onSend}>
-            <Text style={styles.sendText}>{sendLabel}</Text>
+          <Pressable
+            style={[styles.sendButton, sending && styles.sending]}
+            onPress={onSend}
+            disabled={sending}
+            accessibilityState={{ busy: sending, disabled: sending }}
+          >
+            <Text style={styles.sendText}>{sending ? '보내는 중…' : sendLabel}</Text>
           </Pressable>
         )}
       </View>
@@ -236,6 +259,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textMuted,
   },
+  emptyBox: { alignItems: 'center', gap: 10 },
+  addFriend: {
+    fontFamily: Fonts.medium,
+    fontSize: 14,
+    color: Colors.textActive,
+    textDecorationLine: 'underline',
+  },
+  sending: { opacity: 0.6 },
   info: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 70, gap: 8 },
   infoTitle: { fontFamily: Fonts.semiBold, fontSize: 16, color: Colors.textSecondary },
   infoSub: {

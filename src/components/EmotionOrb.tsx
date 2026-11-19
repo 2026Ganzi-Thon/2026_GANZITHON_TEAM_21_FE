@@ -3,11 +3,15 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp } from 'react-native';
 
 import { Colors } from '@/constants/colors';
+import { ORB_FILL } from '@/constants/emotions';
+
+// 피그마 큰 구슬: 링 300 안에 구슬이 지름 258 로 보임 (size 306 기준 비율)
+export const BIG_ORB_VISIBLE_RATIO = 258 / 306;
 
 type Props = {
   source?: ImageSource | number; // 없으면 빈 구슬 (children 으로 + 아이콘 등 표시)
   overlaySource?: ImageSource | number; // 두 번째 감정 (섞기) - 반투명으로 겹침
-  size?: number; // 피그마 기준 메인 구슬 = 306
+  size?: number; // 피그마 기준 큰 구슬 = 306 (링 300)
   ringColor?: string; // 링 안쪽 색
   glowColor?: string; // 링 테두리 글로우 색
   shadowColor?: string; // 오른쪽 아래 그림자 색
@@ -34,6 +38,8 @@ export default function EmotionOrb({
 }: Props) {
   const ring = size * 0.98;
   const inner = size * 0.927;
+  // imageStyle 을 안 넘기면 피그마 큰 구슬 비율로 (이미지 여백 ORB_FILL 감안)
+  const defaultImage = (size * BIG_ORB_VISIBLE_RATIO) / ORB_FILL;
 
   return (
     <Pressable onPress={onPress} disabled={!onPress} style={{ width: size, height: size }}>
@@ -59,7 +65,7 @@ export default function EmotionOrb({
         <View style={[StyleSheet.absoluteFill, styles.center]} pointerEvents="none">
           <Image
             source={source}
-            style={imageStyle ?? [StyleSheet.absoluteFill, styles.image]}
+            style={imageStyle ?? { width: defaultImage, height: defaultImage }}
             contentFit="contain"
           />
         </View>
@@ -68,7 +74,10 @@ export default function EmotionOrb({
         <View style={[StyleSheet.absoluteFill, styles.center]} pointerEvents="none">
           <Image
             source={overlaySource}
-            style={[overlayImageStyle ?? [StyleSheet.absoluteFill, styles.image], styles.overlay]}
+            style={[
+              overlayImageStyle ?? { width: defaultImage, height: defaultImage },
+              styles.overlay,
+            ]}
             contentFit="contain"
           />
         </View>
@@ -89,8 +98,6 @@ const styles = StyleSheet.create({
     shadowRadius: 27,
     elevation: 20,
   },
-  // 이미지 자체 여백 때문에 링 안을 꽉 채우도록 살짝 키움
-  image: { transform: [{ scale: 1.08 }] },
   overlay: { opacity: 0.55 },
   inner: {
     shadowOffset: { width: -1, height: -2 },

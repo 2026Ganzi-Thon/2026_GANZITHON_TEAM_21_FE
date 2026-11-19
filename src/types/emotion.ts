@@ -1,32 +1,40 @@
+// 소리: require() 로 불러온 파일(number) 또는 서버 재생 주소
+// auth: 서버 음원은 로그인 토큰을 헤더에 붙여야 재생됨 (재생 직전에 붙임)
+export type AudioSource = number | { uri: string; auth?: boolean };
+
 export type EmotionKey = 'yellow' | 'orange' | 'red' | 'pink' | 'purple' | 'blue' | 'green';
 
 export type Recipient = {
   id: string;
   name: string;
   avatar: number; // require() 이미지
-  nearby: boolean; // 근처 친구 조건(양쪽 ON, 30분 내 위치 갱신, 약 1km) 충족 여부 - 서버가 판단
 };
 
-// 전달 경로 (기능명세 TR-01): 나에게 / 가까운 사람 / 익명
-export type SendRoute = 'me' | 'nearby' | 'anonymous';
+// 전달 경로 (PRD v1.4 3-4): 가까운 사람(= 친구 목록에서 선택) / 나에게 / 익명
+// 거리·위치 기반 탐색은 MVP 에서 제외
+export type SendRoute = 'friends' | 'me' | 'anonymous';
 
 // 받은 감정구슬 (최초 수신 화면에 표시)
 export type ReceivedEmotion = {
   id: string;
-  senderName: string;
+  route: 'friends' | 'anonymous'; // 친구에게 받음: 반응 기능 없음 / 익명: 반응하기·조용히 듣기·신고
+  senderName: string; // 익명이면 '익명'
   sentAtLabel: string; // '방금', '어제 21:10' 등 - 서버 시간으로 계산해서 넣기
-  emotion: EmotionKey;
-  music?: number; // 첨부 음악 (require() 오디오). 없으면 음악 기능 비활성화
+  emotions: EmotionKey[]; // 1개 또는 섞은 2개 (PRD 3-3: 원본 감정 각각 보존)
+  music?: AudioSource[]; // 첨부 음악 (지금은 샘플 1곡, 순서대로 재생). 없으면 음악 기능 비활성화
   reacted: boolean; // 이미 반응했거나 조용히 듣기를 골랐는지
+  opened: boolean; // 한 번이라도 열어봤는지 (안 열었으면 수신함에 '새 구슬'로 표시)
 };
 
 // 주차별 기록 - 한 주에 모인 감정들 (상세 기록 팝업에 표시)
 export type RecordEntry = {
   id: string;
-  emotion: EmotionKey;
+  emotions: EmotionKey[]; // 1개 또는 섞은 2개
+  own?: boolean; // 내가 보낸·남긴 기록 (이것만 삭제 가능, 받은 기록은 서버가 403)
+  receivedId?: string; // 내가 받은 구슬이면 수신 id → 누르면 단일 구슬 화면 재진입 (PRD 4-4)
   senderName: string; // 본인이면 '나(본인)'
   hasMusic: boolean;
-  reactions: string[]; // 받은 반응 이모지
+  reactions: string[]; // 받은 반응 이모지 (상세 조회 GET /records/{id} 에서 채움)
 };
 
 export type WeekRecord = {
